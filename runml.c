@@ -11,6 +11,12 @@
 #define MAX_LINE_LENGTH 255
 #define INIT_LINE_COUNT 20
 
+typedef struct {
+    char **content;
+    int linecounts;
+} Inputfile;
+
+
 FILE *openfile(char str[]) {
     FILE *fp = fopen(str, "r");
     if (fp == NULL) {
@@ -20,7 +26,7 @@ FILE *openfile(char str[]) {
     return fp;
 }
 
-char **loadfile(FILE *fp) {
+Inputfile loadfile(FILE *fp) {
     // init limit on total lines are 20
     int linecounts = INIT_LINE_COUNT;
     char **content = (char **) calloc(linecounts, sizeof(char *));
@@ -42,7 +48,7 @@ char **loadfile(FILE *fp) {
             if(newaddr != NULL){
                 content = newaddr;
             } else{
-                printf("@Content Array Expand failed, exiting...\n");
+                printf("@Inputfile Array Expand failed, exiting...\n");
                 exit(-1);
             }
             // init new space
@@ -53,7 +59,8 @@ char **loadfile(FILE *fp) {
     }
     // EOF Marking
     content[i] = NULL;
-    return content;
+    Inputfile res = {content, i};
+    return res;
 }
 
 void freecontent(char **content) {
@@ -67,12 +74,12 @@ void freecontent(char **content) {
 int main(int argc, char *argv[]) {
     // get file descriptor
     FILE *fp = openfile(argv[1]);
-    char **content = loadfile(fp);
+    Inputfile inputfile = loadfile(fp);
     // print out the content
-    for (int i = 0; content[i] != NULL; i++) {
-        printf("%s", content[i]);
+    for (int i = 0; inputfile.content[i] != NULL; i++) {
+        printf("%s", inputfile.content[i]);
     }
-    freecontent(content);
+    freecontent(inputfile.content);
     fclose(fp);
     return 0;
 }
