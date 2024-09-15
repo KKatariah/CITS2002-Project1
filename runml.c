@@ -1,3 +1,8 @@
+//  CITS2002 Project 1 2024
+//  Student1:   23381807   Ari Carter
+//  Student2:   STUDENT-NUMBER2   Roy Xu
+//  Platform:   MacOS(??), Linux Mint
+
 #include <stdio.h> 
 #include <stdlib.h> 
 
