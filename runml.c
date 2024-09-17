@@ -1,23 +1,199 @@
 //  CITS2002 Project 1 2024
 //  Student1:   23381807   Ari Carter
-//  Student2:   STUDENT-NUMBER2   Roy Xu
-//  Platform:   MacOS(??), Linux Mint
+//  Student2:   23993019   Hongkang "Roy" Xu
+//  Platform:   MacOS, Linux Mint
 
-#include <stdio.h> 
-#include <stdlib.h> 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-int main(int argc, char *argv[]) { 
-	char file[] = read_file();
+#define MAX_LINE_LENGTH 255
+#define INIT_LINE_COUNT 20
+
+typedef struct {
+    char **content;
+    int linecounts;
+    // [ROY] I decided to make StrBlock stateful to help reducing segv
+    int curline;
+} StrBlock;
+
+
+FILE *openfile(char str[]) {
+    FILE *fp = fopen(str, "r");
+    if (fp == NULL) {
+        printf("Error opening file\n");
+        exit(-1);
+    }
+    return fp;
 }
 
-int readfile(char filename[])
-{
-    char file[] = fopen(filename, "r");
-
-    if(file == NULL) {
-        return 1;
+StrBlock strblockinit() {
+    // init limit on total lines are 20
+    int linecounts = INIT_LINE_COUNT;
+    char **content = (char **) calloc(linecounts, sizeof(char *));
+    // set char limit for each line as 255 for now
+    for (int j = 0; j < INIT_LINE_COUNT; j++) {
+        // notice sizeof should be using char, not char *
+        content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
     }
-    
-    fclose(filename);
+    StrBlock res = {content, linecounts, 0};
+    return res;
+}
+
+// failure on mem op will just kill program for now
+void strblockexpand(StrBlock *block) {
+    // double the size, similar to python's strateg
+    char **newaddr = (char **) realloc(block->content, block->linecounts * 2 * sizeof(char *));
+    if (newaddr != NULL) {
+        block->content = newaddr;
+    } else {
+        printf("@StrBlock Array Expand failed, exiting...\n");
+        exit(-1);
+    }
+    // init new space
+    for (int j = block->linecounts; j < block->linecounts * 2; j++) {
+        block->content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
+    }
+    block->linecounts *= 2;
+}
+
+StrBlock loadfile(FILE *fp) {
+    StrBlock mlfile = strblockinit();
+
+    // iterate & read through all lines
+    int i = 0;
+    while (fgets(mlfile.content[i], MAX_LINE_LENGTH, fp) != NULL) {
+        i++;
+        // if lines exceed current limitation
+        // maybe it's better to isolate it to a new function
+        if (i == mlfile.linecounts) {
+            strblockexpand(&mlfile);
+        }
+    }
+    // EOF Marking
+    mlfile.content[i] = NULL;
+
+    // shrink linecounts to actual line counts to avoid segfault
+    mlfile.linecounts = i;
+    return mlfile;
+}
+
+void rmnewline(char *str) {
+    size_t len = strlen(str);
+    if (str[len - 1] == '\n') {
+        str[len - 1] = '\0';
+    }
+}
+
+void freecontent(char **content) {
+    // IDE won't be happy if I don't check content is null or not
+    if (content == NULL) {
+        return;
+    }
+    for (int i = 0; content[i] != NULL; i++) {
+        free(content[i]);
+    }
+    free(content);
+}
+
+void transprint(StrBlock *dest, StrBlock *src, int targetline) {
+    // no validation on syntax yet
+    printf("@print found\n");
+    // if print is not at leftmost
+    if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
+        printf("@ILLEGAL ML SYNTAX\n");
+        exit(1);
+    } else {
+        char *substr = strstr(src->content[targetline], " ");
+        rmnewline(substr);
+        sprintf(dest->content[dest->curline], "printf(\"%%f\",%s);", substr);
+        dest->curline += 1;
+    }
+}
+
+int main(int argc, char *argv[]) {
+    // get file descriptor
+    FILE *ifp = openfile(argv[1]);
+    FILE *ofp = fopen("./.runml_temp.c", "w");
+
+    StrBlock inputfile = loadfile(ifp);
+
+    // init .runml_temp.c, with proper headers
+    fputs("#include <stdio.h>\n", ofp);
+
+    // store statements which will be written into .ml's main(), in a StrBlock struct
+    StrBlock mlmain = strblockinit();
+
+    // DEBUG: print out the content
+    for (int i = 0; inputfile.content[i] != NULL; i++) {
+        printf("@%s", inputfile.content[i]);
+    }
+
+    // ********************  Main Logic ********************
+    for (int i = 0; i < inputfile.linecounts; i++) {
+        // check if the line is empty, or it's a comment
+        if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
+            continue;
+        }
+        // print statement found
+        if (strstr(inputfile.content[i], "print") != NULL) {
+            transprint(&mlmain, &inputfile, i);
+            continue;
+        }
+        // *****************************************************************
+        // value assign
+        if (strstr(inputfile.content[i], "<-") != NULL) {
+
+
+        }
+        // *****************************************************************
+        // enter function body
+        if (strstr(inputfile.content[i], "function") != NULL) {
+            printf("@function start\n");
+        }
+            // placeholder logic
+        else {
+
+        }
+        // *****************************************************************
+        // check mlmain's size in each loop
+        if (mlmain.curline == mlmain.linecounts) {
+            printf("@mlmain expanded.\n");
+            strblockexpand(&mlmain);
+        }
+    }
+
+    // *****************************************************
+
+
+    // free memory
+    freecontent(inputfile.content);
+    fclose(ifp);
+
+    // write main func cache into .c file
+    fputs("int main(){\n", ofp);
+    for (int i = 0; i < mlmain.linecounts; i++) {
+        fputs(mlmain.content[i], ofp);
+    }
+    fputs("\n}\n", ofp);
+
+    // flush writes to ofp first, or else it's likely to fail
+    fclose(ofp);
+
+    // compile and execute .runml.temp.c
+    if (system("gcc ./.runml_temp.c -o .ml") == 0) {
+        printf("@Compile ml successful\n");
+        printf("@ml executing...\n");
+        int exec_res = system("./.ml");
+        if (exec_res == 0) {
+            printf("\n@ml executed\n");
+        } else {
+            printf("@ml execution failed\n");
+        }
+    } else {
+        printf("@ml compilation failed\n");
+    }
     return 0;
 }
+
+
