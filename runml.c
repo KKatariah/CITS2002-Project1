@@ -13,6 +13,8 @@
 typedef struct {
     char **content;
     int linecounts;
+    // [ROY] I decided to make StrBlock stateful to help reducing segv
+    int curline;
 } StrBlock;
 
 
@@ -34,7 +36,7 @@ StrBlock strblockinit() {
         // notice sizeof should be using char, not char *
         content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
     }
-    StrBlock res = {content, linecounts};
+    StrBlock res = {content, linecounts, 0};
     return res;
 }
 
@@ -76,6 +78,13 @@ StrBlock loadfile(FILE *fp) {
     return mlfile;
 }
 
+void rmnewline(char *str) {
+    size_t len = strlen(str);
+    if (str[len - 1] == '\n') {
+        str[len - 1] = '\0';
+    }
+}
+
 void freecontent(char **content) {
     // IDE won't be happy if I don't check content is null or not
     if (content == NULL) {
@@ -87,6 +96,20 @@ void freecontent(char **content) {
     free(content);
 }
 
+void transprint(StrBlock *dest, StrBlock *src, int targetline) {
+    // no validation on syntax yet
+    printf("@print found\n");
+    // if print is not at leftmost
+    if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
+        printf("@ILLEGAL ML SYNTAX\n");
+        exit(1);
+    } else {
+        char *substr = strstr(src->content[targetline], " ");
+        rmnewline(substr);
+        sprintf(dest->content[dest->curline], "printf(\"%%f\",%s);", substr);
+        dest->curline += 1;
+    }
+}
 
 int main(int argc, char *argv[]) {
     // get file descriptor
@@ -100,10 +123,6 @@ int main(int argc, char *argv[]) {
 
     // store statements which will be written into .ml's main(), in a StrBlock struct
     StrBlock mlmain = strblockinit();
-    // mlmain current line cursor
-    int mlmaincur = 0;
-
-
 
     // DEBUG: print out the content
     for (int i = 0; inputfile.content[i] != NULL; i++) {
@@ -116,76 +135,58 @@ int main(int argc, char *argv[]) {
         if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
             continue;
         }
+        // print statement found
         if (strstr(inputfile.content[i], "print") != NULL) {
-            // print statement found
-            // no validation on syntax yet
-            printf("@print found\n");
-            // if print is not at leftmost
-            if (strstr(inputfile.content[i], "print") - inputfile.content[i] != 0) {
-                printf("@ILLEGAL ML SYNTAX\n");
-                exit(1);
-            } else {
-                strcpy(mlmain.content[mlmaincur], "printf(\"%f\",");
-                mlmaincur += 1;
-                // insert expression
-                char *param = strstr(inputfile.content[i], " ");
-                strcpy(mlmain.content[mlmaincur], param);
-                mlmaincur += 1;
-
-                // close printf()
-                strcpy(mlmain.content[mlmaincur], ");");
-            }
+            transprint(&mlmain, &inputfile, i);
             continue;
-
-
-            // print expression: not implemented
-            // print numeric: not implemented
-            // print var: not implemented
         }
+        // *****************************************************************
+        // value assign
+        if (strstr(inputfile.content[i], "<-") != NULL) {
+
+
+        }
+        // *****************************************************************
+        // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
             printf("@function start\n");
-            // enter function body
         }
             // placeholder logic
         else {
-//            strcpy(mlmain.content[mlmaincur], inputfile.content[i]);
-//            mlmaincur += 1;
 
         }
-        if (mlmaincur == mlmain.linecounts) {
+        // *****************************************************************
+        // check mlmain's size in each loop
+        if (mlmain.curline == mlmain.linecounts) {
             printf("@mlmain expanded.\n");
             strblockexpand(&mlmain);
         }
     }
 
-
-
     // *****************************************************
-
 
 
     // free memory
     freecontent(inputfile.content);
     fclose(ifp);
 
-
-    fputs("int main(){\n", ofp);
-
     // write main func cache into .c file
+    fputs("int main(){\n", ofp);
     for (int i = 0; i < mlmain.linecounts; i++) {
-
         fputs(mlmain.content[i], ofp);
     }
-
     fputs("\n}\n", ofp);
+
     // flush writes to ofp first, or else it's likely to fail
     fclose(ofp);
+
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
         printf("@Compile ml successful\n");
+        printf("@ml executing...\n");
         int exec_res = system("./.ml");
         if (exec_res == 0) {
-            printf("@ml executed\n");
+            printf("\n@ml executed\n");
         } else {
             printf("@ml execution failed\n");
         }
