@@ -193,6 +193,13 @@ int main(int argc, char *argv[]) {
         if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
             continue;
         }
+        // *****************************************************************
+        // check mlmain's size in each loop
+        if (mlmain.curline >= mlmain.linecounts) {
+            printf("@mlmain expanded.\n");
+            strblockexpand(&mlmain);
+        }
+        // *****************************************************************
         // print statement found
         if (strstr(inputfile.content[i], "print") != NULL) {
             transprint(&mlmain, &inputfile, i);
@@ -210,17 +217,13 @@ int main(int argc, char *argv[]) {
             printf("@function start\n");
             continue;
         }
-            // *****************************************************************
-            // catch all
+        // *****************************************************************
+        // catch all
         else {
             exit(-1);
         }
         // *****************************************************************
-        // check mlmain's size in each loop
-        if (mlmain.curline == mlmain.linecounts) {
-            printf("@mlmain expanded.\n");
-            strblockexpand(&mlmain);
-        }
+
     }
 
     // *****************************************************
