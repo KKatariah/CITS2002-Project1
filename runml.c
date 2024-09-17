@@ -16,6 +16,7 @@ typedef struct {
     char **content;
     int linecounts;
     // [ROY] I decided to make StrBlock stateful to help reducing segv
+    // curline should be a blank line ready for writing
     int curline;
 } StrBlock;
 
@@ -59,6 +60,13 @@ void strblockexpand(StrBlock *block) {
     block->linecounts *= 2;
 }
 
+void inccurline(StrBlock *block) {
+    block->curline++;
+    if (block->curline >= block->linecounts) {
+        strblockexpand(block);
+    }
+}
+
 StrBlock loadfile(FILE *fp) {
     StrBlock mlfile = strblockinit();
 
@@ -68,6 +76,7 @@ StrBlock loadfile(FILE *fp) {
         i++;
         // if lines exceed current limitation
         // maybe it's better to isolate it to a new function
+        // there's a function now, not yet migrate to it
         if (i == mlfile.linecounts) {
             strblockexpand(&mlfile);
         }
@@ -94,7 +103,7 @@ void freecontent(char **content) {
     }
     // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
     for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
-        printf("Freeing content[%d] at address %p with value '%s'\n", i, (void *)content[i], content[i]);
+        printf("Freeing content[%d] at address %p with value '%s'\n", i, (void *) content[i], content[i]);
         free(content[i]);
     }
     free(content);
@@ -111,28 +120,26 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
         sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
-        dest->curline += 1;
+        inccurline(dest);
     }
 }
 
+// transassign() writes translated statement to varlist, not dest
+// not a good idea, better change it
+// if changed, change transfunc() behaviour as well
 void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetline) {
-    printf("@assign found\n");
-
     // for getting a cleaned var name from src
-    char varname[MAX_VARNAME_LENGTH];
+    char varname[MAX_VARNAME_LENGTH] = {'\0'};
     int var_cur = 0;
     // value don't need to be clean, or "shouldn't"
     char value[MAX_VARVALUE_LENGTH];
 
-    // just a simplification
+    // getting varname from input/src
     char *line = src->content[targetline];
     rmnewline(line);
     int pos = strstr(line, "<-") - line;
-    for (int i = 0, startspace = 1; i < pos; i++) {
-        // deal with space/tabs (is space allowed?) in assignment statement inside function body
-        if (line[i] == ' ' || line[i] == '\t' && startspace == 1) {
-            continue;
-        } else { startspace = 0; }
+    // pos - 1 excludes the space before <-
+    for (int i = 0; i < pos - 1; i++) {
         if (line[i] == ' ') {
             printf("@SYNTAX ERROR: space not allowed in variable name!\n");
             exit(-1);
@@ -141,7 +148,9 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         var_cur += 1;
     }
 
+    // enclose varname with proper str ending
     varname[var_cur] = '\0';
+    // retrive var value
     strcpy(value, line + pos + 2);
 
     // scan through current varlist
@@ -150,20 +159,29 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         if (strstr(varlist->content[i], varname)) {
             // ensure full name matched
             // all lines in varlist is like "float foo = bar"
-            // just a reminder here, varlist->content[i] is a line=string
+            // varlist->content[i] is a line (string)
             // j is line cursor, k is varname cursor
-            for (int j = 6, k = 0; j < strlen(varlist->content[i]) - 5 && varlist->content[i][j] != '\0';
+            int isnew = 0;
+            for (int j = 6, k = 0;
+                // comparison ends at the second space
+                 j < strlen(varlist->content[i]) &&
+                 j < strstr(strstr(varlist->content[i], " ") + 1, " ") - varlist->content[i];
                  j++, k++) {
-                if (varlist->content[i][j] != varname[k]) { break; }
+                if (varlist->content[i][j] != varname[k]) {
+                    isnew = 1;
+                    break;
+                }
             }
-            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
-            dest->curline += 1;
-            return;
+            if (isnew == 0) {
+                sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+                inccurline(dest);
+                return;
+            }
         }
     }
     // if not, define new var
+    inccurline(varlist);
     sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
-    varlist->curline += 1;
 }
 
 // Using varlist is quite similar to the one in transassign(), isolate it?
@@ -174,41 +192,62 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     // strip the funcname and arguments down, src->content[0] is "function foobar a , b ... "
     // first space pos = 9; j is varlist's inline cursor
     // let first line in varlist to be function name
-    for (int i = 9, j = 0; i < (size_t)strlen(src->content[0]); i++) {
-        // check varlist size as usual
-        if (varlist.curline >= varlist.linecounts) {
-            strblockexpand(&varlist);
-        }
+    for (int i = 9, j = 0; i < (size_t) strlen(src->content[0]); i++) {
         // next arg
         if (src->content[0][i] == ' ') {
-            // enclose last line
+            // enclose last line, since we are doing copy char by char
             varlist.content[varlist.curline][j] = '\0';
             j = 0;
-            varlist.curline += 1;
+            inccurline(&varlist);
         } else {
             varlist.content[varlist.curline][j] = src->content[0][i];
             j++;
         }
     }
+    if (varlist.content[varlist.curline] != NULL) {
+        inccurline(&varlist);
+    }
+
+    // translate varlist from (a, b, ...) to (float a, float b, ...)
+    for (int i = 1; i < varlist.curline; i++) {
+        char buf[MAX_VARNAME_LENGTH] = {'\0'};
+        strcat(buf, "float ");
+        strcat(buf, varlist.content[i]);
+        // in order to let transassign() recognize formal args, put a second space after each varname
+        strcat(buf, " ");
+        strcpy(varlist.content[i], buf);
+    }
+
     // put function declaration down
     char buf[MAX_LINE_LENGTH] = {'\0'};
     char comma[2] = {','};
-    // <= curline not < curline, curline is not size
-    for (int i = 1; i <= varlist.curline; i++) {
-        strcat(buf,"float ");
+    for (int i = 1; i < varlist.curline; i++) {
         strcat(buf, varlist.content[i]);
         strcat(buf, comma);
     }
     // strip the last comma
     buf[strlen(buf) - 1] = '\0';
     sprintf(dest->content[dest->curline], "float %s (%s){", varlist.content[0], buf);
-    dest->curline +=1;
-    if (dest->curline>=dest->linecounts){
-        strblockexpand(dest);
+    inccurline(dest);
+
+
+    // put function body down
+    for (int i = 1; i < src->curline; i++) {
+        if (strstr(src->content[i], "<-") != NULL) {
+            transassign(dest, src, &varlist, i);
+            // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
+            strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
+            inccurline(dest);
+        } else{
+            sprintf(dest->content[dest->curline],"%s;",src->content[i]);
+            inccurline(dest);
+        }
     }
-    sprintf(dest->content[dest->curline], "}");
 
     // add a return statement for catching all
+    sprintf(dest->content[dest->curline], "return 0;\n}");
+    inccurline(dest);
+
 
     freecontent(varlist.content);
     freecontent(src->content);
@@ -247,12 +286,6 @@ int main(int argc, char *argv[]) {
             continue;
         }
         // *****************************************************************
-        // check mlmain's size in each loop
-        if (mlmain.curline >= mlmain.linecounts) {
-            printf("@mlmain expanded.\n");
-            strblockexpand(&mlmain);
-        }
-        // *****************************************************************
         // print statement found
         if (strstr(inputfile.content[i], "print") != NULL) {
             transprint(&mlmain, &inputfile, i);
@@ -271,16 +304,18 @@ int main(int argc, char *argv[]) {
             StrBlock funcbody = strblockinit();
             // do-while to include the funtion defn line
             do {
-                // check funcbody's size in every iteration
-                if (funcbody.curline >= funcbody.linecounts) {
-                    strblockexpand(&funcbody);
-                }
                 rmnewline(inputfile.content[i]);
                 strcpy(funcbody.content[funcbody.curline], inputfile.content[i]);
                 // don't forget to increment outter loop's counter
                 i += 1;
-                funcbody.curline += 1;
+                inccurline(&funcbody);
             } while (i < inputfile.linecounts && inputfile.content[i][0] == '\t');
+            // strip all /t from funcbody
+            for (int j = 1; j < funcbody.curline; j++) {
+                char buf[MAX_LINE_LENGTH] = {'\0'};
+                strcpy(buf, funcbody.content[j] + 1);
+                strcpy(funcbody.content[j], buf);
+            }
             transfunc(&mlfunc, &funcbody);
             continue;
         }
@@ -303,18 +338,27 @@ int main(int argc, char *argv[]) {
 
     // write global varlist to .c file
     for (int i = 0; i < glvarlist.linecounts; i++) {
+        if (glvarlist.content[i][0] == '\0') {
+            continue;
+        }
         fputs(glvarlist.content[i], ofp);
         fputs("\n", ofp);
     }
 
     // write function declarations to .c file
     for (int i = 0; i < mlfunc.linecounts; i++) {
+        if (mlfunc.content[i][0] == '\0') {
+            continue;
+        }
         fputs(mlfunc.content[i], ofp);
         fputs("\n", ofp);
     }
-    // write main func cache into .c file
+    // write main() cache into .c file
     fputs("int main(){\n", ofp);
     for (int i = 0; i < mlmain.linecounts; i++) {
+        if (mlmain.content[i][0] == '\0') {
+            continue;
+        }
         fputs(mlmain.content[i], ofp);
         fputs("\n", ofp);
     }
