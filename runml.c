@@ -49,7 +49,7 @@ void strblockexpand(StrBlock *block) {
     if (newaddr != NULL) {
         block->content = newaddr;
     } else {
-        printf(stderr, "@StrBlock Array Expand failed, exiting...\n");
+        printf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
         exit(-1);
     }
     // init new space
@@ -103,7 +103,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     printf(stdout, "@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
-        printf(stderr, "@ILLEGAL ML SYNTAX\n");
+        printf(stderr, " ! @ILLEGAL ML SYNTAX\n");
         exit(1);
     } else {
         char *substr = strstr(src->content[targetline], " ");
@@ -132,7 +132,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
             continue;
         } else { startspace = 0; }
         if (line[i] == ' ') {
-            printf(stderr, "@SYNTAX ERROR: space not allowed in variable name!\n");
+            printf(stderr, " ! @SYNTAX ERROR: space not allowed in variable name!\n");
             exit(-1);
         }
         varname[var_cur] = line[i];
@@ -257,10 +257,10 @@ int main(int argc, char *argv[]) {
             printf(stdout, "\n@ml executed\n");
         } else {
             // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
-            printf(stderr, "@ml execution failed\n");
+            printf(stderr, " ! @ml execution failed\n");
         }
     } else {
-        printf(stderr, "@ml compilation failed\n");
+        printf(stderr, " ! @ml compilation failed\n");
     }
     return 0;
 }
