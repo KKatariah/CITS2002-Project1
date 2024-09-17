@@ -23,7 +23,7 @@ typedef struct {
 FILE *openfile(char str[]) {
     FILE *fp = fopen(str, "r");
     if (fp == NULL) {
-        printf(stderr, "! Error opening file. Expected arguments: <runml_program> <input_file>\n");
+        fprintf(stderr, "! Error opening file. Expected arguments: <runml_program> <input_file>\n");
         exit(-1);
     }
     return fp;
@@ -49,7 +49,7 @@ void strblockexpand(StrBlock *block) {
     if (newaddr != NULL) {
         block->content = newaddr;
     } else {
-        printf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
+        fprintf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
         exit(-1);
     }
     // init new space
@@ -100,21 +100,23 @@ void freecontent(char **content) {
 
 void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     // no validation on syntax yet
-    printf(stdout, "@print found\n");
+    fprintf(stdout, "@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
-        printf(stderr, " ! @ILLEGAL ML SYNTAX\n");
+        fprintf(stderr, " ! @ILLEGAL ML SYNTAX\n");
         exit(1);
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
-        sprintf(dest->content[dest->curline], "printf(\"%%f\",%s);", substr);
+        sprintf(dest->content[dest->curline], 
+                "if ((int)%s == %s) { printf(\"%%d\\n\", (int)%s); } else { printf(\"%%.6f\\n\", %s); }", substr, substr, substr, substr);
         dest->curline += 1;
+        
     }
 }
 
 void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetline) {
-    printf(stdout, "@assign found\n");
+    fprintf(stdout, "@assign found\n");
 
     // for getting a cleaned var name from src
     char varname[MAX_VARNAME_LENGTH];
@@ -132,7 +134,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
             continue;
         } else { startspace = 0; }
         if (line[i] == ' ') {
-            printf(stderr, " ! @SYNTAX ERROR: space not allowed in variable name!\n");
+            fprintf(stderr, " ! @SYNTAX ERROR: space not allowed in variable name!\n");
             exit(-1);
         }
         varname[var_cur] = line[i];
@@ -207,7 +209,7 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
-            printf(stdout, "@function start\n");
+            fprintf(stdout, "@function start\n");
             continue;
         }
             // *****************************************************************
@@ -218,7 +220,7 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // check mlmain's size in each loop
         if (mlmain.curline == mlmain.linecounts) {
-            printf(stdout, "@mlmain expanded.\n");
+            fprintf(stdout, "@mlmain expanded.\n");
             strblockexpand(&mlmain);
         }
     }
@@ -250,17 +252,17 @@ int main(int argc, char *argv[]) {
 
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
-        printf(stdout, "@Compiled ml successfully\n");
-        printf(stdout, "@ml executing...\n");
+        fprintf(stdout, "@Compiled ml successfully\n");
+        fprintf(stdout, "@ml executing...\n");
         int exec_res = system("./.ml");
         if (exec_res == 0) {
-            printf(stdout, "\n@ml executed\n");
+            fprintf(stdout, "\n@ml executed\n");
         } else {
             // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
-            printf(stderr, " ! @ml execution failed\n");
+            fprintf(stderr, " ! @ml execution failed\n");
         }
     } else {
-        printf(stderr, " ! @ml compilation failed\n");
+        fprintf(stderr, " ! @ml compilation failed\n");
     }
     return 0;
 }
