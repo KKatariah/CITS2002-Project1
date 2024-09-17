@@ -92,7 +92,9 @@ void freecontent(char **content) {
     if (content == NULL) {
         return;
     }
-    for (int i = 0; content[i] != NULL; i++) {
+    // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
+    for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
+        printf("Freeing content[%d] at address %p with value '%s'\n", i, (void *)content[i], content[i]);
         free(content[i]);
     }
     free(content);
@@ -164,6 +166,54 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     varlist->curline += 1;
 }
 
+// Using varlist is quite similar to the one in transassign(), isolate it?
+void transfunc(StrBlock *dest, StrBlock *src) {
+    // src, varlist is a temporary storage, free mem when return
+    StrBlock varlist = strblockinit();
+
+    // strip the funcname and arguments down, src->content[0] is "function foobar a , b ... "
+    // first space pos = 9; j is varlist's inline cursor
+    // let first line in varlist to be function name
+    for (int i = 9, j = 0; i < (size_t)strlen(src->content[0]); i++) {
+        // check varlist size as usual
+        if (varlist.curline >= varlist.linecounts) {
+            strblockexpand(&varlist);
+        }
+        // next arg
+        if (src->content[0][i] == ' ') {
+            // enclose last line
+            varlist.content[varlist.curline][j] = '\0';
+            j = 0;
+            varlist.curline += 1;
+        } else {
+            varlist.content[varlist.curline][j] = src->content[0][i];
+            j++;
+        }
+    }
+    // put function declaration down
+    char buf[MAX_LINE_LENGTH] = {'\0'};
+    char comma[2] = {','};
+    // <= curline not < curline, curline is not size
+    for (int i = 1; i <= varlist.curline; i++) {
+        strcat(buf,"float ");
+        strcat(buf, varlist.content[i]);
+        strcat(buf, comma);
+    }
+    // strip the last comma
+    buf[strlen(buf) - 1] = '\0';
+    sprintf(dest->content[dest->curline], "float %s (%s){", varlist.content[0], buf);
+    dest->curline +=1;
+    if (dest->curline>=dest->linecounts){
+        strblockexpand(dest);
+    }
+    sprintf(dest->content[dest->curline], "}");
+
+    // add a return statement for catching all
+
+    freecontent(varlist.content);
+    freecontent(src->content);
+}
+
 int main(int argc, char *argv[]) {
     // get file descriptor
     FILE *ifp = openfile(argv[1]);
@@ -178,6 +228,9 @@ int main(int argc, char *argv[]) {
 
     // store statements which will be written into .ml's main(), in a StrBlock struct
     StrBlock mlmain = strblockinit();
+
+    // store functions
+    StrBlock mlfunc = strblockinit();
 
     // global variable list
     StrBlock glvarlist = strblockinit();
@@ -215,10 +268,24 @@ int main(int argc, char *argv[]) {
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
             printf("@function start\n");
+            StrBlock funcbody = strblockinit();
+            // do-while to include the funtion defn line
+            do {
+                // check funcbody's size in every iteration
+                if (funcbody.curline >= funcbody.linecounts) {
+                    strblockexpand(&funcbody);
+                }
+                rmnewline(inputfile.content[i]);
+                strcpy(funcbody.content[funcbody.curline], inputfile.content[i]);
+                // don't forget to increment outter loop's counter
+                i += 1;
+                funcbody.curline += 1;
+            } while (i < inputfile.linecounts && inputfile.content[i][0] == '\t');
+            transfunc(&mlfunc, &funcbody);
             continue;
         }
-        // *****************************************************************
-        // catch all
+            // *****************************************************************
+            // catch all
         else {
             exit(-1);
         }
@@ -240,6 +307,11 @@ int main(int argc, char *argv[]) {
         fputs("\n", ofp);
     }
 
+    // write function declarations to .c file
+    for (int i = 0; i < mlfunc.linecounts; i++) {
+        fputs(mlfunc.content[i], ofp);
+        fputs("\n", ofp);
+    }
     // write main func cache into .c file
     fputs("int main(){\n", ofp);
     for (int i = 0; i < mlmain.linecounts; i++) {
@@ -264,6 +336,9 @@ int main(int argc, char *argv[]) {
     } else {
         printf("@ml compilation failed\n");
     }
+
+    // NOT IMPLEMENTED: delete .runml.temp.c
+
     return 0;
 }
 
