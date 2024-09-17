@@ -108,7 +108,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
-        sprintf(dest->content[dest->curline], "printf(\"%%f\",%s);", substr);
+        sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
         dest->curline += 1;
     }
 }
