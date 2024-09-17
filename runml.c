@@ -8,7 +8,9 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 255
-#define INIT_LINE_COUNT 20
+#define INIT_LINE_COUNT 10
+#define MAX_VARNAME_LENGTH 120
+#define MAX_VARVALUE_LENGTH 120
 
 typedef struct {
     char **content;
@@ -111,6 +113,57 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     }
 }
 
+void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetline) {
+    printf("@assign found\n");
+
+    // for getting a cleaned var name from src
+    char varname[MAX_VARNAME_LENGTH];
+    int var_cur = 0;
+    // value don't need to be clean, or "shouldn't"
+    char value[MAX_VARVALUE_LENGTH];
+
+    // just a simplification
+    char *line = src->content[targetline];
+    rmnewline(line);
+    int pos = strstr(line, "<-") - line;
+    for (int i = 0, startspace = 1; i < pos; i++) {
+        // deal with space/tabs (is space allowed?) in assignment statement inside function body
+        if (line[i] == ' ' || line[i] == '\t' && startspace == 1) {
+            continue;
+        } else { startspace = 0; }
+        if (line[i] == ' ') {
+            printf("@SYNTAX ERROR: space not allowed in variable name!\n");
+            exit(-1);
+        }
+        varname[var_cur] = line[i];
+        var_cur += 1;
+    }
+
+    varname[var_cur] = '\0';
+    strcpy(value, line + pos + 2);
+
+    // scan through current varlist
+    for (int i = 0; i < varlist->linecounts; i++) {
+        // if exists, overwrite value in main()
+        if (strstr(varlist->content[i], varname)) {
+            // ensure full name matched
+            // all lines in varlist is like "float foo = bar"
+            // just a reminder here, varlist->content[i] is a line=string
+            // j is line cursor, k is varname cursor
+            for (int j = 6, k = 0; j < strlen(varlist->content[i]) - 5 && varlist->content[i][j] != '\0';
+                 j++, k++) {
+                if (varlist->content[i][j] != varname[k]) { break; }
+            }
+            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+            dest->curline += 1;
+            return;
+        }
+    }
+    // if not, define new var
+    sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
+    varlist->curline += 1;
+}
+
 int main(int argc, char *argv[]) {
     // get file descriptor
     FILE *ifp = openfile(argv[1]);
@@ -119,15 +172,20 @@ int main(int argc, char *argv[]) {
     StrBlock inputfile = loadfile(ifp);
 
     // init .runml_temp.c, with proper headers
-    fputs("#include <stdio.h>\n", ofp);
+    fputs("#include <stdio.h>\n"
+          "#include <stdlib.h>\n"
+          "#include <string.h>\n", ofp);
 
     // store statements which will be written into .ml's main(), in a StrBlock struct
     StrBlock mlmain = strblockinit();
 
-    // DEBUG: print out the content
-    for (int i = 0; inputfile.content[i] != NULL; i++) {
-        printf("@%s", inputfile.content[i]);
-    }
+    // global variable list
+    StrBlock glvarlist = strblockinit();
+
+//    // DEBUG: print out the content
+//    for (int i = 0; inputfile.content[i] != NULL; i++) {
+//        printf("@%s", inputfile.content[i]);
+//    }
 
     // ********************  Main Logic ********************
     for (int i = 0; i < inputfile.linecounts; i++) {
@@ -143,17 +201,19 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // value assign
         if (strstr(inputfile.content[i], "<-") != NULL) {
-
-
+            transassign(&mlmain, &inputfile, &glvarlist, i);
+            continue;
         }
         // *****************************************************************
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
             printf("@function start\n");
+            continue;
         }
-            // placeholder logic
+            // *****************************************************************
+            // catch all
         else {
-
+            exit(-1);
         }
         // *****************************************************************
         // check mlmain's size in each loop
@@ -170,10 +230,18 @@ int main(int argc, char *argv[]) {
     freecontent(inputfile.content);
     fclose(ifp);
 
+
+    // write global varlist to .c file
+    for (int i = 0; i < glvarlist.linecounts; i++) {
+        fputs(glvarlist.content[i], ofp);
+        fputs("\n", ofp);
+    }
+
     // write main func cache into .c file
     fputs("int main(){\n", ofp);
     for (int i = 0; i < mlmain.linecounts; i++) {
         fputs(mlmain.content[i], ofp);
+        fputs("\n", ofp);
     }
     fputs("\n}\n", ofp);
 
