@@ -103,7 +103,6 @@ void freecontent(char **content) {
     }
     // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
     for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
-        printf("Freeing content[%d] at address %p with value '%s'\n", i, (void *) content[i], content[i]);
         free(content[i]);
     }
     free(content);
@@ -111,7 +110,7 @@ void freecontent(char **content) {
 
 void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     // no validation on syntax yet
-    printf("@print found\n");
+//    printf("@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
         printf("@ILLEGAL ML SYNTAX\n");
@@ -119,7 +118,9 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
-        sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
+        sprintf(dest->content[dest->curline], "if ((int)(%s)==%s){ printf(\"%%d\\n\",(int)(%s));}else {printf(\"%%f\\n\",%s);}",
+                substr, substr, substr, substr);
+//        sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
         inccurline(dest);
     }
 }
@@ -238,8 +239,8 @@ void transfunc(StrBlock *dest, StrBlock *src) {
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
             strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
             inccurline(dest);
-        } else{
-            sprintf(dest->content[dest->curline],"%s;",src->content[i]);
+        } else {
+            sprintf(dest->content[dest->curline], "%s;", src->content[i]);
             inccurline(dest);
         }
     }
@@ -300,7 +301,7 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
-            printf("@function start\n");
+//            printf("@function start\n");
             StrBlock funcbody = strblockinit();
             // do-while to include the funtion defn line
             do {
@@ -369,16 +370,18 @@ int main(int argc, char *argv[]) {
 
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
-        printf("@Compile ml successful\n");
-        printf("@ml executing...\n");
+//        printf("@Compile ml successful\n");
+//        printf("@ml executing...\n");
         int exec_res = system("./.ml");
         if (exec_res == 0) {
             printf("\n@ml executed\n");
         } else {
             printf("@ml execution failed\n");
+            exit(-1);
         }
     } else {
         printf("@ml compilation failed\n");
+        exit(-1);
     }
 
     // NOT IMPLEMENTED: delete .runml.temp.c
