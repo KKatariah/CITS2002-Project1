@@ -144,7 +144,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
 
     // scan through current varlist
     for (int i = 0; i < varlist->linecounts; i++) {
-        // if exists
+        // if exists, overwrite value in main()
         if (strstr(varlist->content[i], varname)) {
             // ensure full name matched
             // all lines in varlist is like "float foo = bar"
@@ -154,6 +154,8 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
                  j++, k++) {
                 if (varlist->content[i][j] != varname[k]) { break; }
             }
+            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+            dest->curline += 1;
             return;
         }
     }
@@ -230,8 +232,8 @@ int main(int argc, char *argv[]) {
 
 
     // write global varlist to .c file
-    for (int i =0; i< glvarlist.linecounts;i++){
-        fputs(glvarlist.content[i],ofp);
+    for (int i = 0; i < glvarlist.linecounts; i++) {
+        fputs(glvarlist.content[i], ofp);
         fputs("\n", ofp);
     }
 
