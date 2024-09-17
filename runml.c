@@ -113,12 +113,16 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
 //    printf("@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
-        printf("@ILLEGAL ML SYNTAX\n");
-        exit(1);
+        if (strncmp(strstr(src->content[targetline], "print"), "print ", strlen("print ")) == 0) {
+            printf("@ILLEGAL ML SYNTAX\n");
+            exit(1);
+        }
+
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
-        sprintf(dest->content[dest->curline], "if ((int)(%s)==%s){ printf(\"%%d\\n\",(int)(%s));}else {printf(\"%%f\\n\",%s);}",
+        sprintf(dest->content[dest->curline],
+                "if ((int)(%s)==%s){\n\tprintf(\"%%d\\n\",(int)(%s));\n}\nelse {\n\tprintf(\"%%f\\n\",%s);\n}",
                 substr, substr, substr, substr);
 //        sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
         inccurline(dest);
@@ -239,6 +243,10 @@ void transfunc(StrBlock *dest, StrBlock *src) {
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
             strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
             inccurline(dest);
+        } else if (strstr(src->content[i], "print") != NULL) {
+            if (strncmp(src->content[i], "print ", strlen("print ")) == 0) {
+                transprint(dest, src, i);
+            }
         } else {
             sprintf(dest->content[dest->curline], "%s;", src->content[i]);
             inccurline(dest);
@@ -286,12 +294,7 @@ int main(int argc, char *argv[]) {
         if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
             continue;
         }
-        // *****************************************************************
-        // print statement found
-        if (strstr(inputfile.content[i], "print") != NULL) {
-            transprint(&mlmain, &inputfile, i);
-            continue;
-        }
+
         // *****************************************************************
         // value assign
         if (strstr(inputfile.content[i], "<-") != NULL) {
@@ -301,36 +304,52 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
-//            printf("@function start\n");
-            StrBlock funcbody = strblockinit();
-            // do-while to include the funtion defn line
-            do {
-                rmnewline(inputfile.content[i]);
-                strcpy(funcbody.content[funcbody.curline], inputfile.content[i]);
-                // don't forget to increment outter loop's counter
-                i += 1;
-                inccurline(&funcbody);
-            } while (i < inputfile.linecounts && inputfile.content[i][0] == '\t');
-            // strip all /t from funcbody
-            for (int j = 1; j < funcbody.curline; j++) {
-                char buf[MAX_LINE_LENGTH] = {'\0'};
-                strcpy(buf, funcbody.content[j] + 1);
-                strcpy(funcbody.content[j], buf);
+            if (strncmp(inputfile.content[i], "function ", strlen("function ")) == 0) {
+                //            printf("@function start\n");
+                StrBlock funcbody = strblockinit();
+                // do-while to include the funtion defn line
+                do {
+                    rmnewline(inputfile.content[i]);
+                    strcpy(funcbody.content[funcbody.curline], inputfile.content[i]);
+                    // don't forget to increment outter loop's counter
+                    i += 1;
+                    inccurline(&funcbody);
+                } while (i < inputfile.linecounts && inputfile.content[i][0] == '\t');
+                // strip all /t from funcbody
+                for (int j = 1; j < funcbody.curline; j++) {
+                    char buf[MAX_LINE_LENGTH] = {'\0'};
+                    strcpy(buf, funcbody.content[j] + 1);
+                    strcpy(funcbody.content[j], buf);
+                }
+                transfunc(&mlfunc, &funcbody);
+                continue;
             }
-            transfunc(&mlfunc, &funcbody);
-            continue;
-        }
-            // *****************************************************************
-            // catch all
-        else {
-            exit(-1);
+
         }
         // *****************************************************************
+        // print statement found
+        if (strstr(inputfile.content[i], "print") != NULL) {
+            if (strncmp(inputfile.content[i], "print ", strlen("print ")) == 0) {
+                transprint(&mlmain, &inputfile, i);
+                continue;
+            }
+        }
+        // *****************************************************************
+        // if it's a function call to an exist function
+        for (int j = 0; j < mlfunc.curline; j++) {
+            char *firstspace = strstr(mlfunc.content[j], " ") + 1;
+            int pos = strstr(firstspace, " ") - firstspace;
+            if (strncmp(inputfile.content[i], strcat(firstspace, " "), pos) == 0) {
+                rmnewline(inputfile.content[i]);
+                sprintf(mlmain.content[i],"%s;",inputfile.content[i]);
+                inccurline(&mlmain);
+                break;
+            }
+        }
 
     }
 
-    // *****************************************************
-
+    // *********************Main Logic Ends********************************
 
     // free memory
     freecontent(inputfile.content);
@@ -374,7 +393,7 @@ int main(int argc, char *argv[]) {
 //        printf("@ml executing...\n");
         int exec_res = system("./.ml");
         if (exec_res == 0) {
-            printf("\n@ml executed\n");
+//            printf("\n@ml executed\n");
         } else {
             printf("@ml execution failed\n");
             exit(-1);
