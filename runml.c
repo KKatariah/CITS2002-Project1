@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 255
-#define INIT_LINE_COUNT 20
+#define INIT_LINE_COUNT 10
 #define MAX_VARNAME_LENGTH 120
 #define MAX_VARVALUE_LENGTH 120
 
