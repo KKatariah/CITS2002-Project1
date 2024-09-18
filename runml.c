@@ -159,7 +159,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     strcpy(value, line + pos + 2);
 
     // scan through current varlist
-    for (int i = 0; i < varlist->linecounts; i++) {
+    for (int i = 1; i < varlist->linecounts; i++) {
         // if exists, overwrite value in main()
         if (strstr(varlist->content[i], varname)) {
             // ensure full name matched
@@ -167,10 +167,12 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
             // varlist->content[i] is a line (string)
             // j is line cursor, k is varname cursor
             int isnew = 0;
+            char *firstspace = strstr(varlist->content[i], " ");
+            if (firstspace == NULL){ continue;}
             for (int j = 6, k = 0;
                 // comparison ends at the second space
                  j < strlen(varlist->content[i]) &&
-                 j < strstr(strstr(varlist->content[i], " ") + 1, " ") - varlist->content[i];
+                 j < strstr(firstspace + 1, " ") - varlist->content[i];
                  j++, k++) {
                 if (varlist->content[i][j] != varname[k]) {
                     isnew = 1;
@@ -341,7 +343,7 @@ int main(int argc, char *argv[]) {
             int pos = strstr(firstspace, " ") - firstspace;
             if (strncmp(inputfile.content[i], strcat(firstspace, " "), pos) == 0) {
                 rmnewline(inputfile.content[i]);
-                sprintf(mlmain.content[i],"%s;",inputfile.content[i]);
+                sprintf(mlmain.content[i], "%s;", inputfile.content[i]);
                 inccurline(&mlmain);
                 break;
             }
