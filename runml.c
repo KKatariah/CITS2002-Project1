@@ -122,7 +122,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
         sprintf(dest->content[dest->curline],
-                "if ((int)(%s)==%s){\n\tprintf(\"%%d\\n\",(int)(%s));\n}\nelse {\n\tprintf(\"%%f\\n\",%s);\n}",
+                "if ((int)(%s)==%s){\n\tprintf(\"%%.0f\\n\",%s);\n}\nelse {\n\tprintf(\"%%.6f\\n\",%s);\n}",
                 substr, substr, substr, substr);
 //        sprintf(dest->content[dest->curline], "printf(\"%%f\\n\",%s);", substr);
         inccurline(dest);
