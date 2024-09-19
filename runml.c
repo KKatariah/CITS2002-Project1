@@ -5,10 +5,15 @@
 
 // Assumption 1: according to syntax defn, a blank line won't count as function body, if it occurs it should mark the end of a function
 // Assumption (observation) 2: a line starting with indent outside a function body is not a legal program item
+// TODO: hard coded varlist count starter for "float": e.g. int j = 6
+// TODO: varlist scanning should put isnew check to the outter for-loop
+// TODO: transassign() called in transfunc() won't check glvarlist
+// TODO: logic flaw in determine of new var: I assumed that varlist is sorted by varname's length; actually the whole logic is just wrong
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #define MAX_LINE_LENGTH 255
 #define INIT_LINE_COUNT 10
@@ -22,6 +27,9 @@ typedef struct {
     // curline should be a blank line ready for writing
     int curline;
 } StrBlock;
+
+// this is not a good practice, but I'm too tired now
+StrBlock glvarlist;
 
 FILE *openfile(char str[]) {
     FILE *fp = fopen(str, "r");
@@ -108,7 +116,7 @@ char *rmcontspaces(char *line) {
     char *dst = line;
 
     while (*src != '\0') {
-        if (*src != ' ' ||src != line && (*(src - 1) != ' ' )) {
+        if (*src != ' ' || src != line && (*(src - 1) != ' ')) {
             *dst = *src;
             dst += 1;
         }
@@ -132,6 +140,115 @@ void freecontent(char **content) {
     free(content);
 }
 
+// first arg should always be glvarlist, if there's a second arg it's function's private varlist
+void defaultinit(char *line, int argc, ...) {
+    // ignore function declaration line
+    if ( strstr(line, "function ") != 0) {
+        return;
+    }
+    va_list args;
+    va_start(args, argc);
+    StrBlock *glvarlist;
+    StrBlock *funcvarlist = NULL;
+    if (argc >= 1) {
+        glvarlist = va_arg(args, StrBlock *);
+    }
+    if (argc == 2) {
+        funcvarlist = va_arg(args, StrBlock *);
+    }
+    char *ptr = line;
+    while (*ptr) {
+        while (*ptr == ' ') {
+            ptr += 1;
+        }
+        if (*ptr >= 'a' && *ptr <= 'z') {
+            // found the start of a legal identifier
+            char varname[MAX_LINE_LENGTH] = {'\0'};
+            int varcur = 0;
+            while (*ptr >= 'a' && *ptr <= 'z') {
+                if (varcur < MAX_LINE_LENGTH) {
+                    varname[varcur] = *ptr;
+                    varcur += 1;
+                    ptr += 1;
+                }
+            }
+            // ignore this identifier if it's a function call
+            if (*ptr == '(') {
+                while (*ptr && *ptr != ')') {
+                    ptr += 1;
+                }
+                continue;
+            }
+            varname[varcur] = '\0';
+            // ignore print as well
+            if (strcmp(varname, "print") == 0||strcmp(varname, "return") == 0) {
+                continue;
+            }
+
+            // now we have extracted a varname
+
+            // check if it's declared
+            int isnew_func = 0;
+            if (funcvarlist) {
+                for (int i = 0; isnew_func == 0 && i < funcvarlist->linecounts; i++) {
+                    if (strstr(funcvarlist->content[i], varname)) {
+                        char *firstspace = strstr(funcvarlist->content[i], " ");
+                        if (firstspace == NULL) { continue; }
+                        for (int j = 6, k = 0;
+                            // comparison ends at the second space
+                             j < strlen(funcvarlist->content[i]) &&
+                             j < strstr(firstspace + 1, " ") - funcvarlist->content[i];
+                             j++, k++) {
+                            if (funcvarlist->content[i][j] != varname[k]) {
+                                isnew_func = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else{
+                isnew_func = 1;
+            }
+            int isnew_gl = 0;
+            for (int i = 0; isnew_gl == 0 && i < glvarlist->linecounts; i++) {
+                if (strstr(glvarlist->content[i], varname)) {
+                    char *firstspace = strstr(glvarlist->content[i], " ");
+                    if (firstspace == NULL) { continue; }
+                    for (int j = 6, k = 0;
+                        // comparison ends at the second space
+                         j < strlen(glvarlist->content[i]) &&
+                         j < strstr(firstspace + 1, " ") - glvarlist->content[i];
+                         j++, k++) {
+                        if (glvarlist->content[i][j] != varname[k]) {
+                            isnew_gl = 1;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // default init
+            if (isnew_gl == 1 && isnew_func == 1) {
+                if (funcvarlist) {
+                    inccurline(funcvarlist);
+                    snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
+//                    inccurline(funcvarlist);
+                } else {
+                    inccurline(glvarlist);
+                    snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
+
+                }
+                return;
+            }
+        }
+            // unrecognised character
+        else {
+            ptr += 1;
+        }
+    }
+    va_end(args);
+}
+
 void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     // no validation on syntax yet
     // if print is not at leftmost
@@ -143,6 +260,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
 
     } else {
         char *substr = strstr(src->content[targetline], " ");
+
         rmnewline(substr);
         // need to print to stdout?
         sprintf(dest->content[dest->curline],
@@ -269,6 +387,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
 
     // put function body down
     for (int i = 1; i < src->curline; i++) {
+        defaultinit(src->content[i], 2, &glvarlist, &varlist);
         if (strstr(src->content[i], "<-") != NULL) {
             transassign(dest, src, &varlist, i);
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
@@ -293,6 +412,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     freecontent(src->content);
 }
 
+
 int main(int argc, char *argv[]) {
     // get file descriptor
     FILE *ifp = openfile(argv[1]);
@@ -313,10 +433,10 @@ int main(int argc, char *argv[]) {
     StrBlock mlfunc = strblockinit();
 
     // global variable list
-    StrBlock glvarlist = strblockinit();
+    glvarlist = strblockinit();
 
     // clean up continuous white space before we start translation
-    for (int i = 0; i < inputfile.linecounts;i++){
+    for (int i = 0; i < inputfile.linecounts; i++) {
         inputfile.content[i] = rmcontspaces(inputfile.content[i]);
     }
 
@@ -362,6 +482,8 @@ int main(int argc, char *argv[]) {
         // print statement found
         if (strstr(inputfile.content[i], "print") != NULL) {
             if (strncmp(inputfile.content[i], "print ", strlen("print ")) == 0) {
+                rmnewline(inputfile.content[i]);
+                defaultinit(inputfile.content[i],1, &glvarlist);
                 transprint(&mlmain, &inputfile, i);
                 continue;
             }
@@ -432,7 +554,7 @@ int main(int argc, char *argv[]) {
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
         int exec_res = system("./.ml");
-        if (exec_res != 0){
+        if (exec_res != 0) {
             // not sure if these are 'errors' or not (which would need to use stdout vs stderr)
             fprintf(stderr, " ! @ml execution failed\n");
             exit(-1);
