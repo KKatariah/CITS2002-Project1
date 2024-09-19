@@ -256,7 +256,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     }
 
     // add a return statement for catching all
-    sprintf(dest->content[dest->curline], "return 0;\n}");
+    sprintf(dest->content[dest->curline], "return 0.0;\n}");
     inccurline(dest);
 
 
@@ -338,6 +338,7 @@ int main(int argc, char *argv[]) {
         }
         // *****************************************************************
         // if it's a function call to an exist function
+        int isfunc = 0;
         for (int j = 0; j < mlfunc.curline; j++) {
             char *firstspace = strstr(mlfunc.content[j], " ") + 1;
             int pos = strstr(firstspace, " ") - firstspace;
@@ -345,10 +346,17 @@ int main(int argc, char *argv[]) {
                 rmnewline(inputfile.content[i]);
                 sprintf(mlmain.content[i], "%s;", inputfile.content[i]);
                 inccurline(&mlmain);
+                isfunc = 1;
                 break;
             }
         }
-
+        if (isfunc == 1){
+            continue;
+        }
+        // *****************************************************************
+        // the rest must be an invalid statement
+        fprintf(stderr,"!SYNTAX ERROR, undeclared function or variable.\n");
+        exit(-1);
     }
 
     // *********************Main Logic Ends********************************
