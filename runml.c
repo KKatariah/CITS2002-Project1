@@ -12,7 +12,8 @@
 #define MAX_VARNAME_LENGTH 120
 #define MAX_VARVALUE_LENGTH 120
 
-typedef struct {
+typedef struct
+{
     char **content;
     int linecounts;
     // [ROY] I decided to make StrBlock stateful to help reducing segv
@@ -20,45 +21,54 @@ typedef struct {
     int curline;
 } StrBlock;
 
-
-FILE *openfile(char str[]) {
+FILE *openfile(char str[])
+{
     FILE *fp = fopen(str, "r");
-    if (fp == NULL) {
-        printf("Error opening file\n");
+    if (fp == NULL)
+    {
+        fprintf(stderr, "! Error opening file. Expected arguments: <runml_program> <input_file>\n");
         exit(-1);
     }
     return fp;
 }
 
-StrBlock strblockinit() {
+StrBlock strblockinit()
+{
     // init limit on total lines are 20
     int linecounts = INIT_LINE_COUNT;
-    char **content = (char **) calloc(linecounts, sizeof(char *));
+    char **content = (char **)calloc(linecounts, sizeof(char *));
     // set char limit for each line as 255 for now
-    for (int j = 0; j < INIT_LINE_COUNT; j++) {
+    for (int j = 0; j < INIT_LINE_COUNT; j++)
+    {
         // notice sizeof should be using char, not char *
-        content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
+        content[j] = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
     }
     StrBlock res = {content, linecounts, 0};
     return res;
 }
 
 // failure on mem op will just kill program for now
-void strblockexpand(StrBlock *block) {
+void strblockexpand(StrBlock *block)
+{
     // double the size, similar to python's strateg
-    char **newaddr = (char **) realloc(block->content, block->linecounts * 2 * sizeof(char *));
-    if (newaddr != NULL) {
+    char **newaddr = (char **)realloc(block->content, block->linecounts * 2 * sizeof(char *));
+    if (newaddr != NULL)
+    {
         block->content = newaddr;
-    } else {
-        printf("@StrBlock Array Expand failed, exiting...\n");
+    }
+    else
+    {
+        fprintf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
         exit(-1);
     }
     // init new space
-    for (int j = block->linecounts; j < block->linecounts * 2; j++) {
-        block->content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
+    for (int j = block->linecounts; j < block->linecounts * 2; j++)
+    {
+        block->content[j] = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
     }
     block->linecounts *= 2;
 }
+
 
 void inccurline(StrBlock *block) {
     block->curline++;
@@ -68,16 +78,20 @@ void inccurline(StrBlock *block) {
 }
 
 StrBlock loadfile(FILE *fp) {
+
     StrBlock mlfile = strblockinit();
 
     // iterate & read through all lines
     int i = 0;
-    while (fgets(mlfile.content[i], MAX_LINE_LENGTH, fp) != NULL) {
+    while (fgets(mlfile.content[i], MAX_LINE_LENGTH, fp) != NULL)
+    {
         i++;
         // if lines exceed current limitation
         // maybe it's better to isolate it to a new function
+
         // there's a function now, not yet migrate to it
         if (i == mlfile.linecounts) {
+
             strblockexpand(&mlfile);
         }
     }
@@ -89,38 +103,46 @@ StrBlock loadfile(FILE *fp) {
     return mlfile;
 }
 
-void rmnewline(char *str) {
+void rmnewline(char *str)
+{
     size_t len = strlen(str);
-    if (str[len - 1] == '\n') {
+    if (str[len - 1] == '\n')
+    {
         str[len - 1] = '\0';
     }
 }
 
-void freecontent(char **content) {
+void freecontent(char **content)
+{
     // IDE won't be happy if I don't check content is null or not
-    if (content == NULL) {
+    if (content == NULL)
+    {
         return;
     }
+    
     // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
     for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
+
         free(content[i]);
     }
     free(content);
 }
 
-void transprint(StrBlock *dest, StrBlock *src, int targetline) {
+void transprint(StrBlock *dest, StrBlock *src, int targetline)
+{
     // no validation on syntax yet
 //    printf("@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
         if (strncmp(strstr(src->content[targetline], "print"), "print ", strlen("print ")) == 0) {
-            printf("@ILLEGAL ML SYNTAX\n");
+            fprintf(stderr, "@ILLEGAL ML SYNTAX\n");
             exit(1);
         }
 
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
+      // need to print to stdout?
         sprintf(dest->content[dest->curline],
                 "if ((int)(%s)==%s){\n\tprintf(\"%%.0f\\n\",%s);\n}\nelse {\n\tprintf(\"%%.6f\\n\",%s);\n}",
                 substr, substr, substr, substr);
@@ -133,6 +155,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
 // not a good idea, better change it
 // if changed, change transfunc() behaviour as well
 void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetline) {
+
     // for getting a cleaned var name from src
     char varname[MAX_VARNAME_LENGTH] = {'\0'};
     int var_cur = 0;
@@ -143,10 +166,13 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     char *line = src->content[targetline];
     rmnewline(line);
     int pos = strstr(line, "<-") - line;
+
     // pos - 1 excludes the space before <-
     for (int i = 0; i < pos - 1; i++) {
         if (line[i] == ' ') {
-            printf("@SYNTAX ERROR: space not allowed in variable name!\n");
+            // TODO: this doesnt work i dont think. just terminates program when there is a single line with only a space.
+            fprintf(stderr, " ! @SYNTAX ERROR: Spaces found in variable name at line %d\n", i);
+
             exit(-1);
         }
         varname[var_cur] = line[i];
@@ -160,8 +186,10 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
 
     // scan through current varlist
     for (int i = 1; i < varlist->linecounts; i++) {
+
         // if exists, overwrite value in main()
-        if (strstr(varlist->content[i], varname)) {
+        if (strstr(varlist->content[i], varname))
+        {
             // ensure full name matched
             // all lines in varlist is like "float foo = bar"
             // varlist->content[i] is a line (string)
@@ -183,6 +211,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
                 sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
                 inccurline(dest);
                 return;
+
             }
         }
     }
@@ -264,7 +293,8 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     freecontent(src->content);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     // get file descriptor
     FILE *ifp = openfile(argv[1]);
     FILE *ofp = fopen("./.runml_temp.c", "w");
@@ -274,7 +304,8 @@ int main(int argc, char *argv[]) {
     // init .runml_temp.c, with proper headers
     fputs("#include <stdio.h>\n"
           "#include <stdlib.h>\n"
-          "#include <string.h>\n", ofp);
+          "#include <string.h>\n",
+          ofp);
 
     // store statements which will be written into .ml's main(), in a StrBlock struct
     StrBlock mlmain = strblockinit();
@@ -285,21 +316,24 @@ int main(int argc, char *argv[]) {
     // global variable list
     StrBlock glvarlist = strblockinit();
 
-//    // DEBUG: print out the content
-//    for (int i = 0; inputfile.content[i] != NULL; i++) {
-//        printf("@%s", inputfile.content[i]);
-//    }
+    //    // DEBUG: print out the content
+    //    for (int i = 0; inputfile.content[i] != NULL; i++) {
+    //        printf("@%s", inputfile.content[i]);
+    //    }
 
     // ********************  Main Logic ********************
-    for (int i = 0; i < inputfile.linecounts; i++) {
+    for (int i = 0; i < inputfile.linecounts; i++)
+    {
         // check if the line is empty, or it's a comment
-        if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
+        if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#')
+        {
             continue;
         }
 
         // *****************************************************************
         // value assign
-        if (strstr(inputfile.content[i], "<-") != NULL) {
+        if (strstr(inputfile.content[i], "<-") != NULL)
+        {
             transassign(&mlmain, &inputfile, &glvarlist, i);
             continue;
         }
@@ -349,6 +383,7 @@ int main(int argc, char *argv[]) {
                 isfunc = 1;
                 break;
             }
+
         }
         if (isfunc == 1){
             continue;
@@ -365,12 +400,12 @@ int main(int argc, char *argv[]) {
     freecontent(inputfile.content);
     fclose(ifp);
 
-
     // write global varlist to .c file
     for (int i = 0; i < glvarlist.linecounts; i++) {
         if (glvarlist.content[i][0] == '\0') {
             continue;
         }
+
         fputs(glvarlist.content[i], ofp);
         fputs("\n", ofp);
     }
@@ -389,6 +424,7 @@ int main(int argc, char *argv[]) {
         if (mlmain.content[i][0] == '\0') {
             continue;
         }
+
         fputs(mlmain.content[i], ofp);
         fputs("\n", ofp);
     }
@@ -399,23 +435,28 @@ int main(int argc, char *argv[]) {
 
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
-//        printf("@Compile ml successful\n");
-//        printf("@ml executing...\n");
+        fprintf(stdout, "@Compiled ml successfully\n");
+        fprintf(stdout, "@ml executing...\n");
         int exec_res = system("./.ml");
-        if (exec_res == 0) {
-//            printf("\n@ml executed\n");
-        } else {
-            printf("@ml execution failed\n");
-            exit(-1);
+        if (exec_res == 0)
+        {
+            fprintf(stdout, "\n@ml executed\n");
         }
-    } else {
-        printf("@ml compilation failed\n");
-        exit(-1);
+        else
+        {
+            // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
+            fprintf(stderr, " ! @ml execution failed\n");
+            exit(-1)
+        }
+    }
+    else
+    {
+        fprintf(stderr, " ! @ml compilation failed\n");
+        exit(-1)
+
     }
 
     // NOT IMPLEMENTED: delete .runml.temp.c
 
     return 0;
 }
-
-
