@@ -134,7 +134,6 @@ void freecontent(char **content) {
 
 void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     // no validation on syntax yet
-//    printf("@print found\n");
     // if print is not at leftmost
     if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
         if (strncmp(strstr(src->content[targetline], "print"), "print ", strlen("print ")) == 0) {
@@ -175,7 +174,6 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         if (line[i] == ' ') {
             // TODO: this doesnt work i dont think. just terminates program when there is a single line with only a space.
             fprintf(stderr, " ! @SYNTAX ERROR: Spaces found in variable name at line %d\n", i);
-
             exit(-1);
         }
         varname[var_cur] = line[i];
@@ -340,7 +338,6 @@ int main(int argc, char *argv[]) {
         // enter function body
         if (strstr(inputfile.content[i], "function") != NULL) {
             if (strncmp(inputfile.content[i], "function ", strlen("function ")) == 0) {
-                //            printf("@function start\n");
                 StrBlock funcbody = strblockinit();
                 // do-while to include the funtion defn line
                 do {
@@ -434,13 +431,9 @@ int main(int argc, char *argv[]) {
 
     // compile and execute .runml.temp.c
     if (system("gcc ./.runml_temp.c -o .ml") == 0) {
-        fprintf(stdout, "@Compiled ml successfully\n");
-        fprintf(stdout, "@ml executing...\n");
         int exec_res = system("./.ml");
-        if (exec_res == 0) {
-            fprintf(stdout, "\n@ml executed\n");
-        } else {
-            // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
+        if (exec_res != 0){
+            // not sure if these are 'errors' or not (which would need to use stdout vs stderr)
             fprintf(stderr, " ! @ml execution failed\n");
             exit(-1);
         }
