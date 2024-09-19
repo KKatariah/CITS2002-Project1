@@ -3,6 +3,9 @@
 //  Student2:   23993019   Hongkang "Roy" Xu
 //  Platform:   MacOS, Linux Mint
 
+// Assumption 1: according to syntax defn, a blank line won't count as function body, if it occurs it should mark the end of a function
+// Assumption (observation) 2: a line starting with indent outside a function body is not a legal program item
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,6 +100,22 @@ void rmnewline(char *str) {
     if (str[len - 1] == '\n') {
         str[len - 1] = '\0';
     }
+}
+
+char *rmcontspaces(char *line) {
+    // since stored mem space won't be changed, just let the source be char *line as well
+    char *src = line;
+    char *dst = line;
+
+    while (*src != '\0') {
+        if (*src != ' ' ||src != line && (*(src - 1) != ' ' )) {
+            *dst = *src;
+            dst += 1;
+        }
+        src += 1;
+    }
+    *dst = '\0';
+    return line;
 }
 
 void freecontent(char **content) {
@@ -298,10 +317,11 @@ int main(int argc, char *argv[]) {
     // global variable list
     StrBlock glvarlist = strblockinit();
 
-    //    // DEBUG: print out the content
-    //    for (int i = 0; inputfile.content[i] != NULL; i++) {
-    //        printf("@%s", inputfile.content[i]);
-    //    }
+    // clean up continuous white space before we start translation
+    for (int i = 0; i < inputfile.linecounts;i++){
+        inputfile.content[i] = rmcontspaces(inputfile.content[i]);
+    }
+
 
     // ********************  Main Logic ********************
     for (int i = 0; i < inputfile.linecounts; i++) {
