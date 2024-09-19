@@ -12,8 +12,7 @@
 #define MAX_VARNAME_LENGTH 120
 #define MAX_VARVALUE_LENGTH 120
 
-typedef struct
-{
+typedef struct {
     char **content;
     int linecounts;
     // [ROY] I decided to make StrBlock stateful to help reducing segv
@@ -21,50 +20,41 @@ typedef struct
     int curline;
 } StrBlock;
 
-FILE *openfile(char str[])
-{
+FILE *openfile(char str[]) {
     FILE *fp = fopen(str, "r");
-    if (fp == NULL)
-    {
+    if (fp == NULL) {
         fprintf(stderr, "! Error opening file. Expected arguments: <runml_program> <input_file>\n");
         exit(-1);
     }
     return fp;
 }
 
-StrBlock strblockinit()
-{
+StrBlock strblockinit() {
     // init limit on total lines are 20
     int linecounts = INIT_LINE_COUNT;
-    char **content = (char **)calloc(linecounts, sizeof(char *));
+    char **content = (char **) calloc(linecounts, sizeof(char *));
     // set char limit for each line as 255 for now
-    for (int j = 0; j < INIT_LINE_COUNT; j++)
-    {
+    for (int j = 0; j < INIT_LINE_COUNT; j++) {
         // notice sizeof should be using char, not char *
-        content[j] = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
+        content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
     }
     StrBlock res = {content, linecounts, 0};
     return res;
 }
 
 // failure on mem op will just kill program for now
-void strblockexpand(StrBlock *block)
-{
+void strblockexpand(StrBlock *block) {
     // double the size, similar to python's strateg
-    char **newaddr = (char **)realloc(block->content, block->linecounts * 2 * sizeof(char *));
-    if (newaddr != NULL)
-    {
+    char **newaddr = (char **) realloc(block->content, block->linecounts * 2 * sizeof(char *));
+    if (newaddr != NULL) {
         block->content = newaddr;
-    }
-    else
-    {
+    } else {
         fprintf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
         exit(-1);
     }
     // init new space
-    for (int j = block->linecounts; j < block->linecounts * 2; j++)
-    {
-        block->content[j] = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
+    for (int j = block->linecounts; j < block->linecounts * 2; j++) {
+        block->content[j] = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
     }
     block->linecounts *= 2;
 }
@@ -83,8 +73,7 @@ StrBlock loadfile(FILE *fp) {
 
     // iterate & read through all lines
     int i = 0;
-    while (fgets(mlfile.content[i], MAX_LINE_LENGTH, fp) != NULL)
-    {
+    while (fgets(mlfile.content[i], MAX_LINE_LENGTH, fp) != NULL) {
         i++;
         // if lines exceed current limitation
         // maybe it's better to isolate it to a new function
@@ -103,23 +92,19 @@ StrBlock loadfile(FILE *fp) {
     return mlfile;
 }
 
-void rmnewline(char *str)
-{
+void rmnewline(char *str) {
     size_t len = strlen(str);
-    if (str[len - 1] == '\n')
-    {
+    if (str[len - 1] == '\n') {
         str[len - 1] = '\0';
     }
 }
 
-void freecontent(char **content)
-{
+void freecontent(char **content) {
     // IDE won't be happy if I don't check content is null or not
-    if (content == NULL)
-    {
+    if (content == NULL) {
         return;
     }
-    
+
     // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
     for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
 
@@ -128,8 +113,7 @@ void freecontent(char **content)
     free(content);
 }
 
-void transprint(StrBlock *dest, StrBlock *src, int targetline)
-{
+void transprint(StrBlock *dest, StrBlock *src, int targetline) {
     // no validation on syntax yet
 //    printf("@print found\n");
     // if print is not at leftmost
@@ -142,7 +126,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline)
     } else {
         char *substr = strstr(src->content[targetline], " ");
         rmnewline(substr);
-      // need to print to stdout?
+        // need to print to stdout?
         sprintf(dest->content[dest->curline],
                 "if ((int)(%s)==%s){\n\tprintf(\"%%.0f\\n\",%s);\n}\nelse {\n\tprintf(\"%%.6f\\n\",%s);\n}",
                 substr, substr, substr, substr);
@@ -188,15 +172,14 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     for (int i = 1; i < varlist->linecounts; i++) {
 
         // if exists, overwrite value in main()
-        if (strstr(varlist->content[i], varname))
-        {
+        if (strstr(varlist->content[i], varname)) {
             // ensure full name matched
             // all lines in varlist is like "float foo = bar"
             // varlist->content[i] is a line (string)
             // j is line cursor, k is varname cursor
             int isnew = 0;
             char *firstspace = strstr(varlist->content[i], " ");
-            if (firstspace == NULL){ continue;}
+            if (firstspace == NULL) { continue; }
             for (int j = 6, k = 0;
                 // comparison ends at the second space
                  j < strlen(varlist->content[i]) &&
@@ -293,8 +276,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     freecontent(src->content);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     // get file descriptor
     FILE *ifp = openfile(argv[1]);
     FILE *ofp = fopen("./.runml_temp.c", "w");
@@ -322,18 +304,15 @@ int main(int argc, char *argv[])
     //    }
 
     // ********************  Main Logic ********************
-    for (int i = 0; i < inputfile.linecounts; i++)
-    {
+    for (int i = 0; i < inputfile.linecounts; i++) {
         // check if the line is empty, or it's a comment
-        if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#')
-        {
+        if (inputfile.content[i][0] == '\n' || inputfile.content[i][0] == '#') {
             continue;
         }
 
         // *****************************************************************
         // value assign
-        if (strstr(inputfile.content[i], "<-") != NULL)
-        {
+        if (strstr(inputfile.content[i], "<-") != NULL) {
             transassign(&mlmain, &inputfile, &glvarlist, i);
             continue;
         }
@@ -385,12 +364,12 @@ int main(int argc, char *argv[])
             }
 
         }
-        if (isfunc == 1){
+        if (isfunc == 1) {
             continue;
         }
         // *****************************************************************
         // the rest must be an invalid statement
-        fprintf(stderr,"!SYNTAX ERROR, undeclared function or variable.\n");
+        fprintf(stderr, "!SYNTAX ERROR, undeclared function or variable.\n");
         exit(-1);
     }
 
@@ -438,21 +417,16 @@ int main(int argc, char *argv[])
         fprintf(stdout, "@Compiled ml successfully\n");
         fprintf(stdout, "@ml executing...\n");
         int exec_res = system("./.ml");
-        if (exec_res == 0)
-        {
+        if (exec_res == 0) {
             fprintf(stdout, "\n@ml executed\n");
-        }
-        else
-        {
+        } else {
             // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
             fprintf(stderr, " ! @ml execution failed\n");
-            exit(-1)
+            exit(-1);
         }
-    }
-    else
-    {
+    } else {
         fprintf(stderr, " ! @ml compilation failed\n");
-        exit(-1)
+        exit(-1);
 
     }
 
