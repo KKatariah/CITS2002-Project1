@@ -191,13 +191,13 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         if (strstr(varlist->content[i], varname))
         {
             // ensure full name matched
-            // all lines in varlist is like "float foo = bar"
+            // all lines in varlist is like "double foo = bar"
             // varlist->content[i] is a line (string)
             // j is line cursor, k is varname cursor
             int isnew = 0;
             char *firstspace = strstr(varlist->content[i], " ");
             if (firstspace == NULL){ continue;}
-            for (int j = 6, k = 0;
+            for (int j = 7, k = 0;
                 // comparison ends at the second space
                  j < strlen(varlist->content[i]) &&
                  j < strstr(firstspace + 1, " ") - varlist->content[i];
@@ -217,7 +217,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     }
     // if not, define new var
     inccurline(varlist);
-    sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
+    sprintf(varlist->content[varlist->curline], "double %s = %s;", varname, value);
 }
 
 // Using varlist is quite similar to the one in transassign(), isolate it?
@@ -244,10 +244,10 @@ void transfunc(StrBlock *dest, StrBlock *src) {
         inccurline(&varlist);
     }
 
-    // translate varlist from (a, b, ...) to (float a, float b, ...)
+    // translate varlist from (a, b, ...) to (double a, double b, ...)
     for (int i = 1; i < varlist.curline; i++) {
         char buf[MAX_VARNAME_LENGTH] = {'\0'};
-        strcat(buf, "float ");
+        strcat(buf, "double ");
         strcat(buf, varlist.content[i]);
         // in order to let transassign() recognize formal args, put a second space after each varname
         strcat(buf, " ");
@@ -263,7 +263,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     }
     // strip the last comma
     buf[strlen(buf) - 1] = '\0';
-    sprintf(dest->content[dest->curline], "float %s (%s){", varlist.content[0], buf);
+    sprintf(dest->content[dest->curline], "double %s (%s){", varlist.content[0], buf);
     inccurline(dest);
 
 
