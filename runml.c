@@ -605,7 +605,7 @@ int main(int argc, char *argv[]) {
     }
 
     // delete temp files after compliation and run
-    if (remocve("./.runml_temp.c") == 0 && remove("./.ml") == 0) {
+    if (remove("./.runml_temp.c") == 0 && remove("./.ml") == 0) {
         //fprintf(stdout, "\n@ temp files deleted\n");
     } else {
         fprintf(stderr, " ! @temp file deletion failed\n");
