@@ -6,6 +6,7 @@
 // Assumption 1: according to syntax defn, a blank line won't count as function body, if it occurs it should mark the end of a function
 // Assumption (observation) 2: a line starting with indent outside a function body is not a legal program item
 // Assumption 3: any open bracket will be closed by close bracket
+// Assumption 4: there's no illegal nested function in ml source files
 // TODO: hard coded varlist count starter for "float": e.g. int j = 6
 // TODO: varlist scanning should put isnew check to the outter for-loop
 // TODO: transassign() called in transfunc() won't check glvarlist
