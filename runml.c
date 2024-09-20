@@ -508,12 +508,11 @@ int main(int argc, char *argv[]) {
             int pos = strstr(firstspace, " ") - firstspace;
             if (strncmp(inputfile.content[i], strcat(firstspace, " "), pos) == 0) {
                 rmnewline(inputfile.content[i]);
-                sprintf(mlmain.content[i], "%s;", inputfile.content[i]);
+                sprintf(mlmain.content[mlmain.curline], "%s;", inputfile.content[i]);
                 inccurline(&mlmain);
                 isfunc = 1;
                 break;
             }
-
         }
         if (isfunc == 1) {
             continue;
