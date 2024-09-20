@@ -253,11 +253,11 @@ void defaultinit(char *line, int argc, ...) {
         if (isnew_gl == 1 && isnew_func == 1) {
             if (funcvarlist) {
 //                    inccurline(funcvarlist);
-                snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname[j]);
+                snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s = 0.0;", varname[j]);
                 inccurline(funcvarlist);
             } else {
 //                    inccurline(glvarlist);
-                snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname[j]);
+                snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s = 0.0;", varname[j]);
                 inccurline(glvarlist);
 
             }
@@ -291,7 +291,7 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
 // transassign() writes translated statement to varlist, not dest
 // not a good idea, better change it
 // if changed, change transfunc() behaviour as well
-void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetline) {
+void transassign(StrBlock *dest, StrBlock *src, int targetline, StrBlock *varlist) {
 
     // for getting a cleaned var name from src
     char varname[MAX_VARNAME_LENGTH] = {'\0'};
@@ -399,7 +399,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     // put function body down
     for (int i = 1; i < src->curline; i++) {
         if (strstr(src->content[i], "<-") != NULL) {
-            transassign(dest, src, &varlist, i);
+            transassign(dest, src, i, &varlist);
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
             strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
             inccurline(dest);
@@ -461,7 +461,7 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // value assign
         if (strstr(inputfile.content[i], "<-") != NULL) {
-            transassign(&mlmain, &inputfile, &glvarlist, i);
+            transassign(&mlmain, &inputfile, i, &glvarlist);
             continue;
         }
         // *****************************************************************
