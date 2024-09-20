@@ -519,7 +519,7 @@ int main(int argc, char *argv[]) {
         }
         // *****************************************************************
         // the rest must be an invalid statement
-        fprintf(stderr, "!SYNTAX ERROR, undeclared function or variable.\n");
+        fprintf(stderr, "!SYNTAX ERROR, unknown expression.\n");
         exit(-1);
     }
 
