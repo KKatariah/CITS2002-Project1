@@ -190,7 +190,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         // if exists, overwrite value in main()
         if (strstr(varlist->content[i], varname))
         {
-            // ensure full name matched
+            // ensure full name matches
             // all lines in varlist is like "double foo = bar"
             // varlist->content[i] is a line (string)
             // j is line cursor, k is varname cursor
@@ -456,7 +456,13 @@ int main(int argc, char *argv[])
 
     }
 
-    // NOT IMPLEMENTED: delete .runml.temp.c
+    // delete .runml.temp.c
+    if(remove("./.runml_temp.c") == 0 && remove("./.ml") == 0 && remove ("./runml")==0) {
+        fprintf(stdout, "@ temp files deleted\n");
+    } else {
+        fprintf(stderr, " ! @temp file deletion failed\n");
+    }
+
 
     return 0;
 }
