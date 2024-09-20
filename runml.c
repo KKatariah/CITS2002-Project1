@@ -35,8 +35,6 @@ StrBlock glvarlist;
 
 // 1 for exist , 0 for new
 int checkvar(StrBlock *varlist, char *needle) {
-
-    //TODO: set first line of glvarlist to blank
     for (int i = 0; i <= varlist->curline; i++) {
         char buf[MAX_VARNAME_LENGTH] = {'\0'};
         if (varlist->content[i][0] == '\0') {
@@ -46,6 +44,7 @@ int checkvar(StrBlock *varlist, char *needle) {
         if (name == NULL) { continue; }
         strncpy(buf, varlist->content[i], name - varlist->content[i]);
         //strip "float " out
+
         strcpy(buf, strstr(buf, " ") + 1);
         if (strcmp(buf, needle) == 0) {
             return 1;
@@ -308,7 +307,6 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     // pos - 1 excludes the space before <-
     for (int i = 0; i < pos - 1; i++) {
         if (line[i] == ' ') {
-            // TODO: this doesnt work i dont think. just terminates program when there is a single line with only a space.
             fprintf(stderr, " ! @SYNTAX ERROR: Spaces found in variable namen");
             exit(-1);
         }
@@ -326,8 +324,10 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
         sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
     } else {
         // if not, define new var
-        inccurline(varlist);
+//        inccurline(varlist);
         sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
+        inccurline(varlist);
+
     }
 }
 
@@ -335,25 +335,21 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
 void transfunc(StrBlock *dest, StrBlock *src) {
     // src, varlist is a temporary storage, free mem when return
     StrBlock varlist = strblockinit();
-
+    char funcname[MAX_VARNAME_LENGTH] = {'\0'};
+    char arglist[MAX_VARNAMES][MAX_VARNAME_LENGTH] = {'\0'};
+    int argcount = 0;
     // strip the funcname and arguments down, src->content[0] is "function foobar a , b ... "
     // first space pos = 9; j is varlist's inline cursor
     // let first line in varlist to be function name
-    for (int i = 9, j = 0; i < (size_t) strlen(src->content[0]); i++) {
-        // next arg
-        if (src->content[0][i] == ' ') {
-            // enclose last line, since we are doing copy char by char
-            varlist.content[varlist.curline][j] = '\0';
-            j = 0;
-            inccurline(&varlist);
-        } else {
-            varlist.content[varlist.curline][j] = src->content[0][i];
-            j++;
-        }
+    char firstline[MAX_LINE_LENGTH] = {'\0'};
+    strcpy(firstline, strstr(src->content[0], " ") + 1);
+    int k = 0;
+    while (firstline[k] != ' ' && firstline[k] != '\0') {
+        funcname[k] = firstline[k];
+        k++;
     }
-    if (varlist.content[varlist.curline] != NULL) {
-        inccurline(&varlist);
-    }
+    funcname[k + 1] = '\0';
+    getvarnames(firstline + k, arglist, &argcount);
 
     // translate varlist from (a, b, ...) to (float a, float b, ...)
     for (int i = 1; i < varlist.curline; i++) {
@@ -365,25 +361,36 @@ void transfunc(StrBlock *dest, StrBlock *src) {
         strcpy(varlist.content[i], buf);
     }
 
-    // put function declaration down
     char buf[MAX_LINE_LENGTH] = {'\0'};
     char comma[2] = {','};
-    for (int i = 1; i < varlist.curline; i++) {
-        strcat(buf, varlist.content[i]);
+    for (int i = 0; i < argcount; i++) {
+        strcat(buf, "float ");
+        strcat(buf, arglist[i]);
         strcat(buf, comma);
     }
-
     // strip the last comma, put down function first line/head
     buf[strlen(buf) - 1] = '\0';
-    sprintf(dest->content[dest->curline], "float %s (%s){", varlist.content[0], buf);
+    sprintf(dest->content[dest->curline], "float %s (%s){", funcname, buf);
     inccurline(dest);
+
+    // put args back into varlist
+    for (int l = 0; l < argcount; l++) {
+        sprintf(varlist.content[l], "float %s =", arglist[l]);
+        inccurline(&varlist);
+    }
+
 
     // scan for any other undeclared vars that needs to be init
     for (int i = 1; i < src->curline; i++) {
         defaultinit(src->content[i], 2, &glvarlist, &varlist);
     }
+
     // put down newly inited vars if applicable
-    for (int j = 1; j < varlist.curline; j++) {
+    // skip args lines
+    for (int j = argcount; j < varlist.curline; j++) {
+        if (varlist.content[j] == NULL) {
+            break;
+        }
         strcpy(dest->content[dest->curline], varlist.content[j]);
         inccurline(dest);
     }
@@ -470,6 +477,8 @@ int main(int argc, char *argv[]) {
                     i += 1;
                     inccurline(&funcbody);
                 } while (i < inputfile.linecounts && inputfile.content[i][0] == '\t');
+                // offset the i++ from loop itself
+                i--;
                 // strip all /t from funcbody
                 for (int j = 1; j < funcbody.curline; j++) {
                     char buf[MAX_LINE_LENGTH] = {'\0'};
