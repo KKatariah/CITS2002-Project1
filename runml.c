@@ -576,7 +576,11 @@ int main(int argc, char *argv[]) {
 
     }
 
-    // NOT IMPLEMENTED: delete .runml.temp.c
+    // delete temp files after compliation and run
+    if(remove("./.runml_temp.c") == 0 && remove("./.ml") == 0 ) {
+        fprintf(stdout, "@ temp files deleted\n");
+    } else {
+        fprintf(stderr, " ! @temp file deletion failed\n");
 
     return 0;
 }
