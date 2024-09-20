@@ -446,13 +446,13 @@ int main(int argc, char *argv[])
         {
             // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
             fprintf(stderr, " ! @ml execution failed\n");
-            exit(-1)
+            exit(-1);
         }
     }
     else
     {
         fprintf(stderr, " ! @ml compilation failed\n");
-        exit(-1)
+        exit(-1);
 
     }
 
