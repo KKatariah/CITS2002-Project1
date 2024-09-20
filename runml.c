@@ -43,7 +43,7 @@ int checkvar(StrBlock *varlist, char *needle) {
         char *name = strstr(varlist->content[i], " =");
         if (name == NULL) { continue; }
         strncpy(buf, varlist->content[i], name - varlist->content[i]);
-        //strip "float " out
+        //strip "double " out
 
         strcpy(buf, strstr(buf, " ") + 1);
         if (strcmp(buf, needle) == 0) {
@@ -253,11 +253,11 @@ void defaultinit(char *line, int argc, ...) {
         if (isnew_gl == 1 && isnew_func == 1) {
             if (funcvarlist) {
 //                    inccurline(funcvarlist);
-                snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s = 0.0;", varname[j]);
+                snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "double %s = 0.0;", varname[j]);
                 inccurline(funcvarlist);
             } else {
 //                    inccurline(glvarlist);
-                snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s = 0.0;", varname[j]);
+                snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "double %s = 0.0;", varname[j]);
                 inccurline(glvarlist);
 
             }
@@ -340,7 +340,7 @@ void transassign(StrBlock *dest, StrBlock *src, int targetline, int argc, ...) {
             inccurline(funcvarlist);
         } else {
             // if not, define new var in funvarlist
-            sprintf(funcvarlist->content[funcvarlist->curline], "float %s = %s;", varname, value);
+            sprintf(funcvarlist->content[funcvarlist->curline], "double %s = %s;", varname, value);
             inccurline(funcvarlist);
         }
     }
@@ -349,7 +349,7 @@ void transassign(StrBlock *dest, StrBlock *src, int targetline, int argc, ...) {
         sprintf(glvarlist->content[glvarlist->curline], "%s = %s;", varname, value);
         inccurline(glvarlist);
     } else {
-        sprintf(glvarlist->content[glvarlist->curline], "float %s = %s;", varname, value);
+        sprintf(glvarlist->content[glvarlist->curline], "double %s = %s;", varname, value);
         inccurline(glvarlist);
 
 
@@ -376,10 +376,10 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     funcname[k + 1] = '\0';
     getvarnames(firstline + k, arglist, &argcount);
 
-    // translate varlist from (a, b, ...) to (float a, float b, ...)
+    // translate varlist from (a, b, ...) to (double a, double b, ...)
     for (int i = 1; i < varlist.curline; i++) {
         char buf[MAX_VARNAME_LENGTH] = {'\0'};
-        strcat(buf, "float ");
+        strcat(buf, "double ");
         strcat(buf, varlist.content[i]);
         // in order to let transassign() recognize formal args, put a second space after each varname
         strcat(buf, " ");
@@ -389,18 +389,18 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     char buf[MAX_LINE_LENGTH] = {'\0'};
     char comma[2] = {','};
     for (int i = 0; i < argcount; i++) {
-        strcat(buf, "float ");
+        strcat(buf, "double ");
         strcat(buf, arglist[i]);
         strcat(buf, comma);
     }
     // strip the last comma, put down function first line/head
     buf[strlen(buf) - 1] = '\0';
-    sprintf(dest->content[dest->curline], "float %s (%s){", funcname, buf);
+    sprintf(dest->content[dest->curline], "double %s (%s){", funcname, buf);
     inccurline(dest);
 
     // put args back into varlist
     for (int l = 0; l < argcount; l++) {
-        sprintf(varlist.content[l], "float %s =", arglist[l]);
+        sprintf(varlist.content[l], "double %s =", arglist[l]);
         inccurline(&varlist);
     }
 
@@ -605,8 +605,8 @@ int main(int argc, char *argv[]) {
     }
 
     // delete temp files after compliation and run
-    if (remove("./.runml_temp.c") == 0 && remove("./.ml") == 0) {
-        fprintf(stdout, "@ temp files deleted\n");
+    if (remocve("./.runml_temp.c") == 0 && remove("./.ml") == 0) {
+        //fprintf(stdout, "\n@ temp files deleted\n");
     } else {
         fprintf(stderr, " ! @temp file deletion failed\n");
 
