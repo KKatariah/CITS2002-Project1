@@ -60,7 +60,7 @@ void strblockexpand(StrBlock *block)
     {
         fprintf(stderr, " ! @StrBlock Array Expand failed, exiting...\n");
         exit(-1);
-    }
+    }mod 
     // init new space
     for (int j = block->linecounts; j < block->linecounts * 2; j++)
     {
@@ -120,7 +120,7 @@ void freecontent(char **content)
         return;
     }
     
-    // still wondering why i < sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
+    // still wondering why i <x mod  sizeof(content) is needed, or else there will be a repeat freeing=SIGABRT issue
     for (int i = 0; content[i] != NULL && i < sizeof(content); i++) {
 
         free(content[i]);
@@ -132,8 +132,12 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline)
 {
     // no validation on syntax yet
 //    printf("@print found\n");
-    // if print is not at leftmost
-    if (strstr(src->content[targetline], "print") - src->content[targetline] != 0) {
+    // if print is not at leftmostike "double foo = bar"
+            // varlist->content[i] is a line (string)
+            // j is line cursor, k is varname cursoike "double foo = bar"
+            // varlist->content[i] is a line (string)
+            // j is line cursor, k is varname curso
+    if (strstr(src->content[tax mod rgetline], "print") - src->content[targetline] != 0) {
         if (strncmp(strstr(src->content[targetline], "print"), "print ", strlen("print ")) == 0) {
             fprintf(stderr, "@ILLEGAL ML SYNTAX\n");
             exit(1);
@@ -165,7 +169,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     // getting varname from input/src
     char *line = src->content[targetline];
     rmnewline(line);
-    int pos = strstr(line, "<-") - line;
+    int pos = strstr(line, "<-x mod ") - line;
 
     // pos - 1 excludes the space before <-
     for (int i = 0; i < pos - 1; i++) {
@@ -225,7 +229,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     // src, varlist is a temporary storage, free mem when return
     StrBlock varlist = strblockinit();
 
-    // strip the funcname and arguments down, src->content[0] is "function foobar a , b ... "
+    // strip the funcname and x mod arguments down, src->content[0] is "function foobar a , b ... "
     // first space pos = 9; j is varlist's inline cursor
     // let first line in varlist to be function name
     for (int i = 9, j = 0; i < (size_t) strlen(src->content[0]); i++) {
@@ -444,7 +448,6 @@ int main(int argc, char *argv[])
         }
         else
         {
-            // #TODO: not sure if these are 'errors' or not (which would need to use stdout vs stderr)
             fprintf(stderr, " ! @ml execution failed\n");
             exit(-1);
         }
@@ -456,7 +459,7 @@ int main(int argc, char *argv[])
 
     }
 
-    // delete .runml.temp.c
+    // delete temp files after compliation and run
     if(remove("./.runml_temp.c") == 0 && remove("./.ml") == 0 && remove ("./runml")==0) {
         fprintf(stdout, "@ temp files deleted\n");
     } else {
