@@ -31,6 +31,27 @@ typedef struct {
 // this is not a good practice, but I'm too tired now
 StrBlock glvarlist;
 
+// 1 for exist , 0 for new
+int checkvar(StrBlock *varlist, char *needle) {
+
+    //TODO: set first line of glvarlist to blank
+    for (int i = 0; i <= varlist->curline; i++) {
+        char buf[MAX_VARNAME_LENGTH] = {'\0'};
+        if (varlist->content[i][0] == '\0') {
+            continue;
+        }
+        char *name = strstr(varlist->content[i], " =");
+        if (name == NULL) { continue; }
+        strncpy(buf, varlist->content[i], name - varlist->content[i]);
+        //strip "float " out
+        strcpy(buf, strstr(buf, " ") + 1);
+        if (strcmp(buf, needle) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 FILE *openfile(char str[]) {
     FILE *fp = fopen(str, "r");
     if (fp == NULL) {
@@ -140,22 +161,7 @@ void freecontent(char **content) {
     free(content);
 }
 
-// first arg should always be glvarlist, if there's a second arg it's function's private varlist
-void defaultinit(char *line, int argc, ...) {
-    // ignore function declaration line
-    if ( strstr(line, "function ") != 0) {
-        return;
-    }
-    va_list args;
-    va_start(args, argc);
-    StrBlock *glvarlist;
-    StrBlock *funcvarlist = NULL;
-    if (argc >= 1) {
-        glvarlist = va_arg(args, StrBlock *);
-    }
-    if (argc == 2) {
-        funcvarlist = va_arg(args, StrBlock *);
-    }
+void getvarname(char *line, char *dest) {
     char *ptr = line;
     while (*ptr) {
         while (*ptr == ' ') {
@@ -163,11 +169,10 @@ void defaultinit(char *line, int argc, ...) {
         }
         if (*ptr >= 'a' && *ptr <= 'z') {
             // found the start of a legal identifier
-            char varname[MAX_LINE_LENGTH] = {'\0'};
             int varcur = 0;
             while (*ptr >= 'a' && *ptr <= 'z') {
                 if (varcur < MAX_LINE_LENGTH) {
-                    varname[varcur] = *ptr;
+                    dest[varcur] = *ptr;
                     varcur += 1;
                     ptr += 1;
                 }
@@ -179,72 +184,72 @@ void defaultinit(char *line, int argc, ...) {
                 }
                 continue;
             }
-            varname[varcur] = '\0';
+            dest[varcur] = '\0';
             // ignore print as well
-            if (strcmp(varname, "print") == 0||strcmp(varname, "return") == 0) {
+            if (strcmp(dest, "print") == 0 || strcmp(dest, "return") == 0) {
+                // wipe buf
+                dest[0] = '\0';
                 continue;
             }
-
-            // now we have extracted a varname
-
-            // check if it's declared
-            int isnew_func = 0;
-            if (funcvarlist) {
-                for (int i = 0; isnew_func == 0 && i < funcvarlist->linecounts; i++) {
-                    if (strstr(funcvarlist->content[i], varname)) {
-                        char *firstspace = strstr(funcvarlist->content[i], " ");
-                        if (firstspace == NULL) { continue; }
-                        for (int j = 6, k = 0;
-                            // comparison ends at the second space
-                             j < strlen(funcvarlist->content[i]) &&
-                             j < strstr(firstspace + 1, " ") - funcvarlist->content[i];
-                             j++, k++) {
-                            if (funcvarlist->content[i][j] != varname[k]) {
-                                isnew_func = 1;
-                                break;
-                            }
-                        }
-                    }
-                }
-            } else{
-                isnew_func = 1;
-            }
-            int isnew_gl = 0;
-            for (int i = 0; isnew_gl == 0 && i < glvarlist->linecounts; i++) {
-                if (strstr(glvarlist->content[i], varname)) {
-                    char *firstspace = strstr(glvarlist->content[i], " ");
-                    if (firstspace == NULL) { continue; }
-                    for (int j = 6, k = 0;
-                        // comparison ends at the second space
-                         j < strlen(glvarlist->content[i]) &&
-                         j < strstr(firstspace + 1, " ") - glvarlist->content[i];
-                         j++, k++) {
-                        if (glvarlist->content[i][j] != varname[k]) {
-                            isnew_gl = 1;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // default init
-            if (isnew_gl == 1 && isnew_func == 1) {
-                if (funcvarlist) {
-                    inccurline(funcvarlist);
-                    snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
-//                    inccurline(funcvarlist);
-                } else {
-                    inccurline(glvarlist);
-                    snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
-
-                }
-                return;
-            }
         }
-            // unrecognised character
+        // unrecognised character
         else {
             ptr += 1;
         }
+    }
+}
+
+// first arg should always be glvarlist, if there's a second arg it's function's private varlist
+void defaultinit(char *line, int argc, ...) {
+    // ignore function declaration line
+    if (strstr(line, "function ") != 0) {
+        return;
+    }
+    char varname[MAX_VARNAME_LENGTH] = {'\0'};
+    getvarname(line, varname);
+
+    va_list args;
+    va_start(args, argc);
+    StrBlock *glvarlist;
+    StrBlock *funcvarlist = NULL;
+    if (argc >= 1) {
+        glvarlist = va_arg(args, StrBlock *);
+    }
+    if (argc == 2) {
+        funcvarlist = va_arg(args, StrBlock *);
+    }
+
+
+    // now we have extracted a varname
+
+    // check whether it's a new varname or not
+    int isnew_gl = 0;
+    int isnew_func = 0;
+
+    if (checkvar(glvarlist, varname) == 0) {
+        isnew_gl = 1;
+    }
+    if (funcvarlist) {
+        if (checkvar(funcvarlist, varname) == 0) {
+            isnew_func = 1;
+        }
+    } else {
+        isnew_func = 1;
+    }
+
+    // default init
+    if (isnew_gl == 1 && isnew_func == 1) {
+        if (funcvarlist) {
+//                    inccurline(funcvarlist);
+            snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
+            inccurline(funcvarlist);
+        } else {
+//                    inccurline(glvarlist);
+            snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
+            inccurline(glvarlist);
+
+        }
+        return;
     }
     va_end(args);
 }
@@ -291,7 +296,7 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     for (int i = 0; i < pos - 1; i++) {
         if (line[i] == ' ') {
             // TODO: this doesnt work i dont think. just terminates program when there is a single line with only a space.
-            fprintf(stderr, " ! @SYNTAX ERROR: Spaces found in variable name at line %d\n", i);
+            fprintf(stderr, " ! @SYNTAX ERROR: Spaces found in variable namen");
             exit(-1);
         }
         varname[var_cur] = line[i];
@@ -304,38 +309,13 @@ void transassign(StrBlock *dest, StrBlock *src, StrBlock *varlist, int targetlin
     strcpy(value, line + pos + 2);
 
     // scan through current varlist
-    for (int i = 1; i < varlist->linecounts; i++) {
-
-        // if exists, overwrite value in main()
-        if (strstr(varlist->content[i], varname)) {
-            // ensure full name matched
-            // all lines in varlist is like "float foo = bar"
-            // varlist->content[i] is a line (string)
-            // j is line cursor, k is varname cursor
-            int isnew = 0;
-            char *firstspace = strstr(varlist->content[i], " ");
-            if (firstspace == NULL) { continue; }
-            for (int j = 6, k = 0;
-                // comparison ends at the second space
-                 j < strlen(varlist->content[i]) &&
-                 j < strstr(firstspace + 1, " ") - varlist->content[i];
-                 j++, k++) {
-                if (varlist->content[i][j] != varname[k]) {
-                    isnew = 1;
-                    break;
-                }
-            }
-            if (isnew == 0) {
-                sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
-                inccurline(dest);
-                return;
-
-            }
-        }
+    if (checkvar(varlist, varname) == 1) {
+        sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+    } else {
+        // if not, define new var
+        inccurline(varlist);
+        sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
     }
-    // if not, define new var
-    inccurline(varlist);
-    sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
 }
 
 // Using varlist is quite similar to the one in transassign(), isolate it?
@@ -379,15 +359,25 @@ void transfunc(StrBlock *dest, StrBlock *src) {
         strcat(buf, varlist.content[i]);
         strcat(buf, comma);
     }
-    // strip the last comma
+
+    // strip the last comma, put down function first line/head
     buf[strlen(buf) - 1] = '\0';
     sprintf(dest->content[dest->curline], "float %s (%s){", varlist.content[0], buf);
     inccurline(dest);
 
+    // scan for any other undeclared vars that needs to be init
+    for (int i = 1; i < src->curline; i++) {
+        defaultinit(src->content[i], 2, &glvarlist, &varlist);
+    }
+    // put down newly inited vars if applicable
+    for (int j = 1; j < varlist.curline; j++) {
+        strcpy(dest->content[dest->curline], varlist.content[j]);
+        inccurline(dest);
+    }
+
 
     // put function body down
     for (int i = 1; i < src->curline; i++) {
-        defaultinit(src->content[i], 2, &glvarlist, &varlist);
         if (strstr(src->content[i], "<-") != NULL) {
             transassign(dest, src, &varlist, i);
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
@@ -483,7 +473,7 @@ int main(int argc, char *argv[]) {
         if (strstr(inputfile.content[i], "print") != NULL) {
             if (strncmp(inputfile.content[i], "print ", strlen("print ")) == 0) {
                 rmnewline(inputfile.content[i]);
-                defaultinit(inputfile.content[i],1, &glvarlist);
+                defaultinit(inputfile.content[i], 1, &glvarlist);
                 transprint(&mlmain, &inputfile, i);
                 continue;
             }
