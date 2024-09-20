@@ -291,7 +291,18 @@ void transprint(StrBlock *dest, StrBlock *src, int targetline) {
 // transassign() writes translated statement to varlist, not dest
 // not a good idea, better change it
 // if changed, change transfunc() behaviour as well
-void transassign(StrBlock *dest, StrBlock *src, int targetline, StrBlock *varlist) {
+void transassign(StrBlock *dest, StrBlock *src, int targetline, int argc, ...) {
+    va_list args;
+    va_start(args, argc);
+    StrBlock *glvarlist;
+    StrBlock *funcvarlist = NULL;
+
+    if (argc >= 1) {
+        glvarlist = va_arg(args, StrBlock *);
+    }
+    if (argc == 2) {
+        funcvarlist = va_arg(args, StrBlock *);
+    }
 
     // for getting a cleaned var name from src
     char varname[MAX_VARNAME_LENGTH] = {'\0'};
@@ -320,13 +331,24 @@ void transassign(StrBlock *dest, StrBlock *src, int targetline, StrBlock *varlis
     strcpy(value, line + pos + 2);
 
     // scan through current varlist
-    if (checkvar(varlist, varname) == 1) {
+    if (funcvarlist) {
+        if (checkvar(glvarlist, varname) == 1) {
+            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+        } else if (checkvar(funcvarlist, varname) == 1) {
+            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+        } else {
+            // if not, define new var
+            sprintf(funcvarlist->content[funcvarlist->curline], "float %s = %s;", varname, value);
+            inccurline(funcvarlist);
+        }
+    }
+        // no funcvarlist passed
+    else if (checkvar(glvarlist, varname) == 1) {
         sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
     } else {
-        // if not, define new var
-//        inccurline(varlist);
-        sprintf(varlist->content[varlist->curline], "float %s = %s;", varname, value);
-        inccurline(varlist);
+        sprintf(glvarlist->content[glvarlist->curline], "float %s = %s;", varname, value);
+        inccurline(glvarlist);
+
 
     }
 }
@@ -399,7 +421,7 @@ void transfunc(StrBlock *dest, StrBlock *src) {
     // put function body down
     for (int i = 1; i < src->curline; i++) {
         if (strstr(src->content[i], "<-") != NULL) {
-            transassign(dest, src, i, &varlist);
+            transassign(dest, src, i, 2, &glvarlist, &varlist);
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
             strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
             inccurline(dest);
@@ -461,7 +483,7 @@ int main(int argc, char *argv[]) {
         // *****************************************************************
         // value assign
         if (strstr(inputfile.content[i], "<-") != NULL) {
-            transassign(&mlmain, &inputfile, i, &glvarlist);
+            transassign(&mlmain, &inputfile, i, 1, &glvarlist);
             continue;
         }
         // *****************************************************************
@@ -577,10 +599,11 @@ int main(int argc, char *argv[]) {
     }
 
     // delete temp files after compliation and run
-    if(remove("./.runml_temp.c") == 0 && remove("./.ml") == 0 ) {
+    if (remove("./.runml_temp.c") == 0 && remove("./.ml") == 0) {
         fprintf(stdout, "@ temp files deleted\n");
     } else {
         fprintf(stderr, " ! @temp file deletion failed\n");
 
-    return 0;
+        return 0;
+    }
 }
