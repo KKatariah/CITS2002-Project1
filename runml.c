@@ -138,7 +138,7 @@ char *rmcontspaces(char *line) {
     char *dst = line;
 
     while (*src != '\0') {
-        if ((*src != ' ' || src != line) && (*(src - 1) != ' ')) {
+        if (*src != ' ' || (src != line && (*(src - 1) != ' '))) {
             *dst = *src;
             dst += 1;
         }
