@@ -360,8 +360,8 @@ void transassign(StrBlock *dest, StrBlock *src, int targetline, int argc, ...) {
 void transfunc(StrBlock *dest, StrBlock *src) {
     // src, varlist is a temporary storage, free mem when return
     StrBlock varlist = strblockinit();
-    char funcname[MAX_VARNAME_LENGTH] = {{'\0'}};
-    char arglist[MAX_VARNAMES][MAX_VARNAME_LENGTH] = {'\0'};
+    char funcname[MAX_VARNAME_LENGTH] = {'\0'};
+    char arglist[MAX_VARNAMES][MAX_VARNAME_LENGTH] = {{'\0'}};
     int argcount = 0;
     // strip the funcname and arguments down, src->content[0] is "function foobar a , b ... "
     // first space pos = 9; j is varlist's inline cursor
