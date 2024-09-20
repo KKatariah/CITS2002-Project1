@@ -333,18 +333,21 @@ void transassign(StrBlock *dest, StrBlock *src, int targetline, int argc, ...) {
     // scan through current varlist
     if (funcvarlist) {
         if (checkvar(glvarlist, varname) == 1) {
-            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+            sprintf(glvarlist->content[glvarlist->curline], "%s = %s;", varname, value);
+            inccurline(glvarlist);
         } else if (checkvar(funcvarlist, varname) == 1) {
-            sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+            sprintf(funcvarlist->content[funcvarlist->curline], "%s = %s;", varname, value);
+            inccurline(funcvarlist);
         } else {
-            // if not, define new var
+            // if not, define new var in funvarlist
             sprintf(funcvarlist->content[funcvarlist->curline], "float %s = %s;", varname, value);
             inccurline(funcvarlist);
         }
     }
         // no funcvarlist passed
     else if (checkvar(glvarlist, varname) == 1) {
-        sprintf(dest->content[dest->curline], "%s = %s;", varname, value);
+        sprintf(glvarlist->content[glvarlist->curline], "%s = %s;", varname, value);
+        inccurline(glvarlist);
     } else {
         sprintf(glvarlist->content[glvarlist->curline], "float %s = %s;", varname, value);
         inccurline(glvarlist);
@@ -423,13 +426,16 @@ void transfunc(StrBlock *dest, StrBlock *src) {
         if (strstr(src->content[i], "<-") != NULL) {
             transassign(dest, src, i, 2, &glvarlist, &varlist);
             // because of the reason provided in transassign, need to copy the statements from varlist to dest(mlfunc)
-            strcpy(dest->content[dest->curline], varlist.content[varlist.curline]);
+            strcpy(dest->content[dest->curline], varlist.content[varlist.curline - 1]);
             inccurline(dest);
         } else if (strstr(src->content[i], "print") != NULL) {
             if (strncmp(src->content[i], "print ", strlen("print ")) == 0) {
                 transprint(dest, src, i);
             }
         } else {
+            if (dest->content[dest->curline]!= NULL){
+                inccurline(dest);
+            }
             sprintf(dest->content[dest->curline], "%s;", src->content[i]);
             inccurline(dest);
         }
