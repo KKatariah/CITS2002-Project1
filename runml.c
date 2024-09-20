@@ -5,6 +5,7 @@
 
 // Assumption 1: according to syntax defn, a blank line won't count as function body, if it occurs it should mark the end of a function
 // Assumption (observation) 2: a line starting with indent outside a function body is not a legal program item
+// Assumption 3: any open bracket will be closed by close bracket
 // TODO: hard coded varlist count starter for "float": e.g. int j = 6
 // TODO: varlist scanning should put isnew check to the outter for-loop
 // TODO: transassign() called in transfunc() won't check glvarlist
@@ -19,6 +20,7 @@
 #define INIT_LINE_COUNT 10
 #define MAX_VARNAME_LENGTH 120
 #define MAX_VARVALUE_LENGTH 120
+#define MAX_VARNAMES 50
 
 typedef struct {
     char **content;
@@ -161,43 +163,52 @@ void freecontent(char **content) {
     free(content);
 }
 
-void getvarname(char *line, char *dest) {
+void getvarnames(char *line, char dest[][MAX_VARNAME_LENGTH], int *count) {
     char *ptr = line;
+    *count = 0;
     while (*ptr) {
         while (*ptr == ' ') {
             ptr += 1;
         }
         if (*ptr >= 'a' && *ptr <= 'z') {
-            // found the start of a legal identifier
             int varcur = 0;
-            while (*ptr >= 'a' && *ptr <= 'z') {
-                if (varcur < MAX_LINE_LENGTH) {
-                    dest[varcur] = *ptr;
-                    varcur += 1;
-                    ptr += 1;
-                }
+            char temp_var[MAX_VARNAME_LENGTH] = {'\0'};
+            while ((*ptr >= 'a' && *ptr <= 'z') && varcur < (MAX_VARNAME_LENGTH - 1)) {
+                temp_var[varcur++] = *ptr;
+                ptr += 1;
             }
-            // ignore this identifier if it's a function call
+            temp_var[varcur] = '\0';
+
+            // ignore function calls, with a new assumption
             if (*ptr == '(') {
                 while (*ptr && *ptr != ')') {
                     ptr += 1;
                 }
+                if (*ptr == ')') {
+                    ptr += 1;
+                }
                 continue;
             }
-            dest[varcur] = '\0';
-            // ignore print as well
-            if (strcmp(dest, "print") == 0 || strcmp(dest, "return") == 0) {
-                // wipe buf
-                dest[0] = '\0';
+
+            if (strcmp(temp_var, "print") == 0 || strcmp(temp_var, "return") == 0) {
                 continue;
             }
-        }
-        // unrecognised character
-        else {
+
+            if (*count < MAX_VARNAMES) {
+                strncpy(dest[*count], temp_var, MAX_VARNAME_LENGTH - 1);
+                dest[*count][MAX_VARNAME_LENGTH - 1] = '\0';
+                (*count)++;
+            } else {
+
+                fprintf(stderr, "Varnames exceed 50.\n");
+                break;
+            }
+        } else {
             ptr += 1;
         }
     }
 }
+
 
 // first arg should always be glvarlist, if there's a second arg it's function's private varlist
 void defaultinit(char *line, int argc, ...) {
@@ -205,8 +216,9 @@ void defaultinit(char *line, int argc, ...) {
     if (strstr(line, "function ") != 0) {
         return;
     }
-    char varname[MAX_VARNAME_LENGTH] = {'\0'};
-    getvarname(line, varname);
+    char varname[MAX_VARNAMES][MAX_VARNAME_LENGTH] = {'\0'};
+    int count = 0;
+    getvarnames(line, varname, &count);
 
     va_list args;
     va_start(args, argc);
@@ -220,36 +232,37 @@ void defaultinit(char *line, int argc, ...) {
     }
 
 
-    // now we have extracted a varname
+    // now we have extracted varname(s)
 
     // check whether it's a new varname or not
-    int isnew_gl = 0;
-    int isnew_func = 0;
+    for (int j = 0; j < count; j++) {
+        int isnew_gl = 0;
+        int isnew_func = 0;
 
-    if (checkvar(glvarlist, varname) == 0) {
-        isnew_gl = 1;
-    }
-    if (funcvarlist) {
-        if (checkvar(funcvarlist, varname) == 0) {
+        if (checkvar(glvarlist, varname[j]) == 0) {
+            isnew_gl = 1;
+        }
+        if (funcvarlist) {
+            if (checkvar(funcvarlist, varname[j]) == 0) {
+                isnew_func = 1;
+            }
+        } else {
             isnew_func = 1;
         }
-    } else {
-        isnew_func = 1;
-    }
 
-    // default init
-    if (isnew_gl == 1 && isnew_func == 1) {
-        if (funcvarlist) {
+        // default init
+        if (isnew_gl == 1 && isnew_func == 1) {
+            if (funcvarlist) {
 //                    inccurline(funcvarlist);
-            snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
-            inccurline(funcvarlist);
-        } else {
+                snprintf(funcvarlist->content[funcvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname[j]);
+                inccurline(funcvarlist);
+            } else {
 //                    inccurline(glvarlist);
-            snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname);
-            inccurline(glvarlist);
+                snprintf(glvarlist->content[glvarlist->curline], MAX_LINE_LENGTH, "float %s=0.0;", varname[j]);
+                inccurline(glvarlist);
 
+            }
         }
-        return;
     }
     va_end(args);
 }
