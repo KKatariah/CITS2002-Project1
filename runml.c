@@ -1,6 +1,6 @@
 //  CITS2002 Project 1 2024
-//  Student1:   23381807   Ari Carter
-//  Student2:   23993019   Hongkang "Roy" Xu
+//  Student1:   Ari Carter
+//  Student2:   Hongkang "Roy" Xu
 //  Platform:   MacOS, Linux Mint
 
 #include <stdio.h>
